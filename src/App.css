@@ -1,0 +1,588 @@
+:root {
+  --font-sans: "Segoe UI", "Arial", system-ui, -apple-system, BlinkMacSystemFont, Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
+  /* Cores extraídas do seu projeto Python */
+  --color-background: #1c2332;
+  --color-widget-bg: #161c2b;
+  --color-border: #242a3a;
+  --color-border-hover: #4d5770;
+  --color-text: #DCE4EE;
+  --color-text-dim: #8b94a1;
+  --color-connect-bg: #253627;
+  --color-connect-border: #4c8352;
+  --color-connect-hover-bg: #324b35;
+  --color-default-button-bg: #2a3449;
+  --color-default-button-border: #445069;
+
+  --color-error-bg: #361f1f;
+  --color-error-border: #b44a4a;
+  --color-error-hover-bg: #4a2a2a;
+
+
+
+}
+
+@font-face {
+  font-family: 'Monaspace Krypton';
+  src: url('./fonts/MonaspaceKrypton-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.container {
+  margin: 0;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  font-family: 'Monaspace Krypton', monospace;
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+h1 {
+  font-size: 2.2em;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: var(--color-text)
+}
+
+.action-button {
+  border-radius: 8px;
+  padding: 0.4em 1em; 
+  font-size: 0.9em;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  background-color: var(--color-default-button-bg);
+  border: 1px solid var(--color-default-button-border);
+}
+
+.action-button:hover:not([disabled]) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: var(--color-border-hover);
+}
+
+.action-button:active:not([disabled]) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.action-button.connect-button {
+  background-color: var(--color-connect-bg);
+  border-color: var(--color-connect-border);
+}
+
+.action-button.connect-button:hover:not([disabled]) {
+  background-color: var(--color-connect-hover-bg);
+  border-color: var(--color-connect-border);
+}
+
+.action-button:disabled {
+  background-color: var(--color-widget-bg);
+  border-color: var(--color-border);
+  color: var(--color-text-dim);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ==== Layout da Tela de Conexões ==== */
+
+.connections-container {
+  display: flex;
+  flex-direction: column; /* Empilha o logo e o conte�do */
+  align-items: center;
+  justify-content: center; /* Centraliza o bloco principal na tela */
+  gap: 1rem; /* Espa�o entre o logo e o conte�do */
+  width: 100%;
+}
+
+.connections-content {
+  display: flex;
+  flex-direction: row; /* Alinha a lista e os bot�es lado a lado */
+  align-items: flex-start; /* Alinha os itens no topo */
+  justify-content: center;
+  gap: 1.5rem; /* Espa�o entre a lista e os bot�es */
+  width: 100%;
+  max-width: 700px; /* Define uma largura m�xima para o conjunto */
+}
+
+.connections-list {
+  flex-grow: 1; /* A lista ocupa o espa�o dispon�vel */
+  min-width: 300px; /* Largura m�nima para a lista */
+  background-color: var(--color-widget-bg);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  padding: 1rem;
+}
+
+.connections-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.connections-list li {
+  padding: 0.8em 1em;
+  cursor: pointer;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.15s ease-in-out;
+  text-align: left;
+}
+
+.connections-list li:hover {
+  background-color: var(--color-border);
+}
+
+.connections-list li.selected {
+  background-color: var(--color-connect-bg);
+  border: 1px solid var(--color-connect-border);
+  color: #fff;
+  font-weight: 600;
+}
+
+.connection-actions {
+  display: flex;
+  flex-direction: column; /* Bot�es empilhados verticalmente */
+  justify-content: flex-start; /* Alinha os bot�es no topo */
+  gap: 0.75rem; /* Espaço entre os botões */
+}
+.connect-button {
+  background-color: var(--color-connect-bg); /* Green background */
+  border-color: var(--color-connect-border);
+}
+
+/* --- Estilos do Modal --- */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: var(--color-background);
+  padding: 2rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  color: var(--color-text);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.modal-form input {
+  font-family: var(--font-sans);
+  padding: 0.8rem;
+  font-size: 1rem;
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  outline: none;
+}
+
+.modal-form input:focus {
+  border-color: var(--color-connect-border);
+  box-shadow: 0 0 0 2px var(--color-accent-hover);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.modal-actions.return-options {
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+/* --- Estilos da Notificação --- */
+.notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--color-connect-border);
+  color: var(--color-text);
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 2000;
+  opacity: 0.95;
+  animation: slide-in-out 3s ease-in-out forwards;
+}
+@keyframes slide-in-out {
+  0% {
+    transform: translate(-50%, -100px);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, 0);
+    opacity: 0.95;
+  }
+  85% {
+    transform: translate(-50%, 0);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(-50%, -100px);
+    opacity: 0;
+  }
+}
+
+
+.action-button.save-button {
+  background-color: var(--color-connect-bg);
+  border-color: var(--color-connect-border);
+}
+
+.action-button.save-button:hover:not([disabled]) {
+  background-color: var(--color-connect-hover-bg);
+}
+
+.action-button.delete-button {
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error-border);
+}
+
+.action-button.delete-button:hover:not([disabled]) {
+  background-color: var(--color-error-hover-bg);
+  border-color: var(--color-error-border);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+
+.container.screen-query h1 {
+  text-align: left;
+  width: 100%;
+  max-width: 900px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  color: var(--color-connect-border);
+}
+
+/* --- Estilos da Tela de Query (Tela 2) --- */
+
+.query-screen-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  gap: 1.5rem;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.query-screen-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.connection-nickname {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.database-controls-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.database-list, .query-editor {
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: left;
+}
+
+.search-input {
+  font-family: var(--font-sans);
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  border-color: var(--color-connect-border);
+}
+
+.select-all-label {
+  font-size: 0.9rem;
+  color: var(--color-text-dim);
+  user-select: none; /* Impede a seleção de texto ao clicar */
+}
+
+.query-editor h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+}
+
+.database-list-grid {
+  /* A propriedade 'columns' é a forma correta de criar um layout de "jornal",
+     onde o conteúdo flui verticalmente para preencher as colunas. */
+  columns: 220px; /* Define a largura ideal de cada coluna */
+  column-gap: 1.5rem; /* Espaçamento entre as colunas */
+}
+
+.database-list-grid .checkbox-label {
+  display: block; /* Essencial para que o layout de colunas funcione */
+  break-inside: avoid-column; /* Evita que um item quebre entre duas colunas */
+  padding-block: 0.3rem;
+}
+
+.database-list-grid .checkbox-label {
+  /* Evita que um item quebre e apareça em duas colunas diferentes */
+  break-inside: avoid-column;
+  display: block; /* Garante que o 'break-inside' e o layout de coluna funcionem corretamente */
+  padding-block: 0.3rem; /* Adiciona um pequeno espaçamento vertical */
+}
+
+.database-list-grid .checkbox-label {
+  /* Evita que um item quebre entre duas colunas */
+  break-inside: avoid-column;
+  padding-block: 0.3rem; /* Espaçamento vertical entre os itens */
+}
+.query-editor textarea {
+  width: 100%;
+  min-height: 200px;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  padding: 0.8rem;
+  font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
+  font-size: 1rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.query-editor textarea:focus {
+  outline: none;
+  border-color: var(--color-connect-border);
+  box-shadow: 0 0 0 2px var(--color-connect-hover-bg);
+}
+
+.screen-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  width: 100%;
+}
+
+.query-editor textarea:focus {
+  outline: none;
+  border-color: var(--color-connect-border);
+  box-shadow: 0 0 0 2px var(--color-connect-hover-bg);
+}
+
+.screen-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* --- Estilos da Tela de Execução (Tela 3) --- */
+
+.execution-screen-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  gap: 1.5rem;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.execution-list {
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+  min-height: 300px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.execution-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.execution-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 1.1rem;
+}
+
+.execution-list li:last-child {
+  border-bottom: none;
+}
+
+.status-icon {
+  font-size: 1.2rem;
+}
+
+/* --- Estilos do Modal de Logs --- */
+
+.log-modal-content {
+  max-width: 800px;
+}
+
+.log-entries {
+  max-height: 60vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.log-entry pre {
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  padding: 1rem;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--color-error);
+}
+
+
+.loading-state, .error-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 1.2rem;
+  color: var(--color-text-dim);
+}
+
+.error-state {
+  color: var(--color-error);
+}
+
+.checkbox-label.disabled {
+  opacity: 0.6;
+  color: #999;
+  cursor: not-allowed;
+}
+
+
+.status-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-result-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0 5px;
+}
+
+.result-modal-content {
+  width: 90%;
+  max-width: 1200px;
+  height: 80%;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-table-container {
+  flex-grow: 1;
+  overflow: auto;
+  border: 1px solid #444;
+  border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.result-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.result-table-container th,
+.result-table-container td {
+  border: 1px solid #444;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.result-table-container th {
+  background-color: #333;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.result-table-container tbody tr:nth-child(even) {
+  background-color: #2c2c2c;
+}
+
+.result-table-container tbody tr:hover {
+  background-color: #3a3a3a;
+}

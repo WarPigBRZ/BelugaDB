@@ -1,0 +1,11 @@
+[
+  {
+    "id": "1753366181422",
+    "name": "172.20.4.84",
+    "host": "172.20.4.84",
+    "port": "5432",
+    "user": "postgres",
+    "pass": "gregeo",
+    "savePass": true
+  }
+]
