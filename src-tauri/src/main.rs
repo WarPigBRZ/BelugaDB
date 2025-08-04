@@ -100,6 +100,7 @@ struct DatabaseStatus {
 enum ExecutionResult {
     Select(QueryResult),
     Mutation { affected_rows: u64 },
+    Error(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -288,6 +289,7 @@ async fn execute_query_on_databases(
     databases: Vec<String>,
     query: String,
     save_option: SaveOption,
+    stop_on_error: bool,
 ) -> Result<(), String> {
     // 1. Lida com os diálogos primeiro, pois eles precisam ser aguardados no contexto async principal.
         let save_path: Option<PathBuf> = match save_option {
@@ -335,24 +337,38 @@ async fn execute_query_on_databases(
             );
 
             let mut results_for_this_db: Vec<ExecutionResult> = Vec::new();
-            let mut error_log: Option<String> = None;
-            let mut executed_count = 0;
+            let mut has_error = false;
 
-            for single_query in &queries {
+            for (i, single_query) in queries.iter().enumerate() {
                 match execute_single_query(&conn_str, single_query).await {
                     Ok(result) => {
                         results_for_this_db.push(result);
-                        executed_count += 1;
                     }
                     Err(e) => {
-                        error_log = Some(format!("Erro na query {}: {}", executed_count + 1, e));
-                        break; // Para no primeiro erro para este banco de dados
+                        has_error = true;
+                        let error_msg = format!("Erro na query {}: {}", i + 1, e);
+                        results_for_this_db.push(ExecutionResult::Error(error_msg));
+                        if stop_on_error {
+                            break;
+                        }
                     }
                 }
             }
 
-            let execution_status = if error_log.is_some() { ExecutionStatus::Error } else { ExecutionStatus::Success };
-            let log_message = error_log.unwrap_or_else(|| format!("{} queries executadas com sucesso.", executed_count));
+            let execution_status = if has_error {
+                ExecutionStatus::Error
+            } else {
+                ExecutionStatus::Success
+            };
+
+            let successes = results_for_this_db.iter().filter(|r| !matches!(r, ExecutionResult::Error(_))).count();
+            let failures = results_for_this_db.len() - successes;
+
+            let log_message = if failures > 0 {
+                format!("{} com sucesso, {} com falha.", successes, failures)
+            } else {
+                format!("{} queries executadas com sucesso.", successes)
+            };
 
             let mut status = DatabaseStatus {
                 name: db_name.clone(),

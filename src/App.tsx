@@ -40,7 +40,8 @@ interface QueryResult {
 // Corresponde ao enum `ExecutionResult` do Rust
 type ExecutionResult =
   | { type: 'select'; payload: QueryResult }
-  | { type: 'mutation'; payload: { affectedRows: number } };
+  | { type: 'mutation'; payload: { affectedRows: number } }
+  | { type: 'error'; payload: string };
 
 // ATUALIZADO: Estrutura do status de um banco de dados
 interface DatabaseStatus {
@@ -59,48 +60,84 @@ const ExecutionResultModal = ({
   onClose: () => void;
   results: ExecutionResult[] | null;
 }) => {
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+
+  // Reset to the first tab whenever the modal is opened or the results change
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTabIndex(0);
+    }
+  }, [isOpen, results]);
+
   if (!isOpen || !results || results.length === 0) return null;
+
+  const getTabInfo = (result: ExecutionResult, index: number) => {
+    switch (result.type) {
+      case 'select':
+        return { icon: '📄', label: `SELECT (${result.payload.rows.length} linhas)` };
+      case 'mutation':
+        return { icon: '✔️', label: `Mutação` };
+      case 'error':
+        return { icon: '❌', label: `Erro Query ${index + 1}` };
+      default:
+        return { icon: '❓', label: `Query ${index + 1}` };
+    }
+  };
+
+  const activeResult = results[activeTabIndex];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content result-modal-content" onClick={(e) => e.stopPropagation()}>
         <h2>Resultados da Execução</h2>
-        <div className="result-list-container">
-          {results.map((result, index) => (
-            <div key={index} className="result-item">
-              <h4>Query {index + 1}</h4>
-              {result.type === 'select' ? (
-                <div className="result-table-container">
-                  {result.payload.rows.length > 0 ? (
-                    <table>
-                      <thead>
-                        <tr>
-                          {result.payload.headers.map((header, hIndex) => (
-                            <th key={hIndex}>{header}</th>
+        <div className="tab-container">
+          <div className="tab-buttons">
+            {results.map((result, index) => {
+              const { icon, label } = getTabInfo(result, index);
+              return (
+                <button
+                  key={index}
+                  className={`tab-button ${index === activeTabIndex ? 'active' : ''}`}
+                  onClick={() => setActiveTabIndex(index)}
+                >
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="tab-content">
+            {activeResult.type === 'select' ? (
+              <div className="result-table-container">
+                {activeResult.payload.rows.length > 0 ? (
+                  <table>
+                    <thead>
+                      <tr>
+                        {activeResult.payload.headers.map((header, hIndex) => (
+                          <th key={hIndex}>{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeResult.payload.rows.map((row, rIndex) => (
+                        <tr key={rIndex}>
+                          {row.map((cell, cIndex) => (
+                            <td key={cIndex}>{cell}</td>
                           ))}
                         </tr>
-                      </thead>
-                      <tbody>
-                        {result.payload.rows.map((row, rIndex) => (
-                          <tr key={rIndex}>
-                            {row.map((cell, cIndex) => (
-                              <td key={cIndex}>{cell}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <p><i>Query executada com sucesso, mas não retornou linhas.</i></p>
-                  )}
-                </div>
-              ) : (
-                <p className="mutation-result">
-                  ✔️ Sucesso! {result.payload.affectedRows} linha(s) afetada(s).
-                </p>
-              )}
-            </div>
-          ))}
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p><i>Query executada com sucesso, mas não retornou linhas.</i></p>
+                )}
+              </div>
+            ) : activeResult.type === 'mutation' ? (
+              <p className="mutation-result">✔️ Sucesso! {activeResult.payload.affectedRows} linha(s) afetada(s).</p>
+            ) : (
+              <p className="error-result">❌ {activeResult.payload}</p>
+            )}
+          </div>
         </div>
         <div className="modal-actions">
           <button type="button" onClick={onClose} className="action-button">
@@ -312,6 +349,7 @@ const QueryScreen = ({
   error: string | null;
   onBack: () => void;
   onExecute: (query: string, databases: string[], saveOption: SaveOption) => void;
+  onExecute: (query: string, databases: string[], saveOption: SaveOption, stopOnError: boolean) => void;
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAllSelected, setIsAllSelected] = useState(true);
@@ -345,14 +383,16 @@ const QueryScreen = ({
   };
 
   const [isSaveOptionsModalOpen, setIsSaveOptionsModalOpen] = useState(false);
+  const [stopOnErrorFlag, setStopOnErrorFlag] = useState(false);
 
-  const handleExecuteClick = () => {
+  const handleExecuteClick = (stopOnError: boolean) => {
+    setStopOnErrorFlag(stopOnError);
     setIsSaveOptionsModalOpen(true);
   };
 
   const handleSaveOptionSelect = (saveOption: SaveOption) => {
     const selectedDbs = databases.filter(db => db.checked).map(db => db.name);
-    onExecute(query, selectedDbs, saveOption);
+    onExecute(query, selectedDbs, saveOption, stopOnErrorFlag);
     setIsSaveOptionsModalOpen(false);
   };
 
@@ -420,7 +460,8 @@ const QueryScreen = ({
 
       <div className="screen-actions">
         <button onClick={onBack} className="action-button">Voltar</button>
-        <button onClick={handleExecuteClick} className="action-button save-button">Executar</button>
+        <button onClick={() => handleExecuteClick(true)} className="action-button warning-button">Executar Sequencial</button>
+        <button onClick={() => handleExecuteClick(false)} className="action-button save-button">Executar</button>
       </div>
         </>
       )}
@@ -747,7 +788,7 @@ function App() {
   }
 
   // Função para lidar com a execução da query (leva para a Tela 3)
-  const handleExecute = (query: string, databases: string[], saveOption: SaveOption) => {
+  const handleExecute = (query: string, databases: string[], saveOption: SaveOption, stopOnError: boolean) => {
     if (databases.length === 0) {
       showNotification("Erro: Nenhum banco de dados selecionado.");
       return;
@@ -759,7 +800,7 @@ function App() {
     console.log("Executando query:", query, "nos bancos:", databases);
     // Chama o comando Rust para iniciar a execução em background.
     // O Rust vai emitir eventos para atualizar a UI.
-    invoke('execute_query_on_databases', { connection: selectedConnection, databases, query, saveOption })
+    invoke('execute_query_on_databases', { connection: selectedConnection, databases, query, saveOption, stopOnError })
       .catch(err => {
         showNotification(`Erro ao iniciar execução: ${err}`);
       });
