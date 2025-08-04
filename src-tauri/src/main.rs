@@ -78,6 +78,7 @@ struct DatabaseInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
+#[derive(PartialEq)]
 enum ExecutionStatus {
     Waiting,
     Success,
@@ -90,7 +91,15 @@ struct DatabaseStatus {
     name: String,
     status: ExecutionStatus,
     log: Option<String>,
-    result: Option<QueryResult>,
+    results: Vec<ExecutionResult>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type", content = "payload")]
+#[serde(rename_all = "camelCase")]
+enum ExecutionResult {
+    Select(QueryResult),
+    Mutation { affected_rows: u64 },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -182,11 +191,11 @@ async fn get_databases(connection: Connection) -> Result<Vec<DatabaseInfo>, Stri
     Ok(databases)
 }
 
-// Helper function to execute a query and return a structured result
-async fn execute_query_for_db(
+// Helper function to execute a single query and return a structured result
+async fn execute_single_query(
     connection_str: &str,
     query: &str,
-) -> Result<QueryResult, String> {
+) -> Result<ExecutionResult, String> {
     let (client, connection) = tokio_postgres::connect(connection_str, NoTls)
         .await
         .map_err(|e| format!("Erro de conexão: {}", e))?;
@@ -197,71 +206,79 @@ async fn execute_query_for_db(
         }
     });
 
-    let rows = client
-        .query(query, &[])
-        .await
-        .map_err(|e| format!("Erro na consulta: {}", e))?;
+    let is_select = query.trim().to_lowercase().starts_with("select");
 
-    if rows.is_empty() {
-        return Ok(QueryResult {
-            headers: vec![],
-            rows: vec![],
-        });
-    }
+    if is_select {
+        let rows = client
+            .query(query, &[])
+            .await
+            .map_err(|e| format!("Erro na consulta: {}", e))?;
 
-    let headers: Vec<String> = rows[0]
-        .columns()
-        .iter()
-        .map(|c| c.name().to_string())
-        .collect();
-
-    let mut result_rows = Vec::new();
-    for row in &rows {
-        let mut values = Vec::new();
-        for i in 0..row.len() {
-            let col_type = row.columns()[i].type_();
-            let value_str = if col_type == &Type::NUMERIC {
-                row.try_get::<_, Decimal>(i)
-                    .map(|d| d.to_string())
-                    .unwrap_or_else(|_| "NULL".to_string())
-            } else if col_type == &Type::INT2 {
-                row.try_get::<_, i16>(i)
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|_| "NULL".to_string())
-            } else if col_type == &Type::INT4 {
-                row.try_get::<_, i32>(i)
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|_| "NULL".to_string())
-            } else if col_type == &Type::INT8 {
-                row.try_get::<_, i64>(i)
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|_| "NULL".to_string())
-            } else if col_type == &Type::FLOAT4 || col_type == &Type::FLOAT8 {
-                row.try_get::<_, f64>(i)
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|_| "NULL".to_string())
-            } else if col_type.name() == "geometry" {
-                row.try_get::<_, RawBytes>(i)
-                    .map(|raw_bytes| {
-                        let mut cursor = std::io::Cursor::new(&raw_bytes.0);
-                        match Geometry::read_ewkb(&mut cursor) {
-                            Ok(geom) => format!("{:?}", geom),
-                            Err(_) => "GEOMETRIA_INVALIDA".to_string(),
-                        }
-                    })
-                    .unwrap_or_else(|_| "NULL".to_string())
-            } else {
-                row.try_get::<_, String>(i).unwrap_or_else(|_| "NULL".to_string())
-            };
-            values.push(value_str);
+        if rows.is_empty() {
+            return Ok(ExecutionResult::Select(QueryResult {
+                headers: vec![],
+                rows: vec![],
+            }));
         }
-        result_rows.push(values);
-    }
 
-    Ok(QueryResult {
-        headers,
-        rows: result_rows,
-    })
+        let headers: Vec<String> = rows[0]
+            .columns()
+            .iter()
+            .map(|c| c.name().to_string())
+            .collect();
+
+        let mut result_rows = Vec::new();
+        for row in &rows {
+            let mut values = Vec::new();
+            for i in 0..row.len() {
+                let col_type = row.columns()[i].type_();
+                let value_str = if col_type == &Type::NUMERIC {
+                    row.try_get::<_, Decimal>(i)
+                        .map(|d| d.to_string())
+                        .unwrap_or_else(|_| "NULL".to_string())
+                } else if col_type == &Type::INT2 {
+                    row.try_get::<_, i16>(i)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|_| "NULL".to_string())
+                } else if col_type == &Type::INT4 {
+                    row.try_get::<_, i32>(i)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|_| "NULL".to_string())
+                } else if col_type == &Type::INT8 {
+                    row.try_get::<_, i64>(i)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|_| "NULL".to_string())
+                } else if col_type == &Type::FLOAT4 || col_type == &Type::FLOAT8 {
+                    row.try_get::<_, f64>(i)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|_| "NULL".to_string())
+                } else if col_type.name() == "geometry" {
+                    row.try_get::<_, RawBytes>(i)
+                        .map(|raw_bytes| {
+                            let mut cursor = std::io::Cursor::new(&raw_bytes.0);
+                            match Geometry::read_ewkb(&mut cursor) {
+                                Ok(geom) => format!("{:?}", geom),
+                                Err(_) => "GEOMETRIA_INVALIDA".to_string(),
+                            }
+                        })
+                        .unwrap_or_else(|_| "NULL".to_string())
+                } else {
+                    row.try_get::<_, String>(i).unwrap_or_else(|_| "NULL".to_string())
+                };
+                values.push(value_str);
+            }
+            result_rows.push(values);
+        }
+
+        Ok(ExecutionResult::Select(QueryResult {
+            headers,
+            rows: result_rows,
+        }))
+    } else {
+        // Para INSERT, UPDATE, DELETE, etc.
+        let affected_rows = client.execute(query, &[]).await.map_err(|e| e.to_string())?;
+        Ok(ExecutionResult::Mutation { affected_rows })
+    }
 }
 
 #[tauri::command]
@@ -298,7 +315,18 @@ async fn execute_query_on_databases(
     // 2. Inicia a tarefa de longa duração em segundo plano.
     tauri::async_runtime::spawn(async move {
         // Acumule os resultados se for SaveOption::Single
-        let mut all_results: Vec<(String, QueryResult)> = Vec::new();
+        let mut all_results_for_csv: Vec<(String, QueryResult)> = Vec::new();
+
+        let queries: Vec<&str> = query
+            .split(';')
+            .map(|q| q.trim())
+            .filter(|q| !q.is_empty())
+            .collect();
+
+        if queries.is_empty() {
+            // Se não houver queries válidas, apenas retorne.
+            return;
+        }
 
         for db_name in databases {
             let conn_str = format!(
@@ -306,35 +334,52 @@ async fn execute_query_on_databases(
                 connection.host, connection.port, connection.user, connection.pass, db_name
             );
 
-            let execution_result = execute_query_for_db(&conn_str, &query).await;
+            let mut results_for_this_db: Vec<ExecutionResult> = Vec::new();
+            let mut error_log: Option<String> = None;
+            let mut executed_count = 0;
 
-            let mut status = match execution_result {
-                Ok(query_result) => {
-                    // Acumula para salvar depois, se for SaveOption::Single
-                    if let SaveOption::Single = save_option {
-                        all_results.push((db_name.clone(), query_result.clone()));
+            for single_query in &queries {
+                match execute_single_query(&conn_str, single_query).await {
+                    Ok(result) => {
+                        results_for_this_db.push(result);
+                        executed_count += 1;
                     }
-                    DatabaseStatus {
-                        name: db_name.clone(),
-                        status: ExecutionStatus::Success,
-                        log: None,
-                        result: Some(query_result),
+                    Err(e) => {
+                        error_log = Some(format!("Erro na query {}: {}", executed_count + 1, e));
+                        break; // Para no primeiro erro para este banco de dados
                     }
                 }
-                Err(e) => DatabaseStatus {
-                    name: db_name.clone(),
-                    status: ExecutionStatus::Error,
-                    log: Some(e.to_string()),
-                    result: None,
-                },
+            }
+
+            let execution_status = if error_log.is_some() { ExecutionStatus::Error } else { ExecutionStatus::Success };
+            let log_message = error_log.unwrap_or_else(|| format!("{} queries executadas com sucesso.", executed_count));
+
+            let mut status = DatabaseStatus {
+                name: db_name.clone(),
+                status: execution_status,
+                log: Some(log_message),
+                results: results_for_this_db,
             };
 
-            // Salva separado, se for o caso
-            if let (Some(folder_path), Some(query_result), SaveOption::Separate) = (&save_path, &status.result, &save_option) {
+            // Encontra o último resultado de SELECT para salvar em CSV
+            let last_select_result = status.results.iter().filter_map(|r| match r {
+                ExecutionResult::Select(qr) => Some(qr),
+                _ => None
+            }).last();
+
+            // Salva separado, se for o caso e se for um SELECT
+            if let (Some(folder_path), Some(query_result), SaveOption::Separate) = (&save_path, last_select_result, &save_option) {
                 let file_path = folder_path.join(format!("{}.csv", db_name));
                 if let Err(e) = write_csv(&file_path, query_result) {
                     status.status = ExecutionStatus::Error;
                     status.log = Some(format!("Sucesso na query, mas falha ao salvar CSV: {}", e));
+                }
+            }
+
+            // Acumula para salvar depois, se for SaveOption::Single
+            if let (Some(query_result), SaveOption::Single) = (last_select_result, &save_option) {
+                if status.status == ExecutionStatus::Success {
+                    all_results_for_csv.push((db_name.clone(), query_result.clone()));
                 }
             }
 
@@ -347,8 +392,11 @@ async fn execute_query_on_databases(
         if let SaveOption::Single = save_option {
             if let Some(folder_path) = &save_path {
                 let file_path = folder_path.join("resultado_unico.csv");
-                if let Err(e) = write_all_csv(&file_path, &all_results) {
-                    eprintln!("Erro ao salvar CSV único: {}", e);
+
+                if !all_results_for_csv.is_empty() {
+                    if let Err(e) = write_all_csv(&file_path, &all_results_for_csv) {
+                        eprintln!("Erro ao salvar CSV único: {}", e);
+                    }
                 }
             }
         }
@@ -357,11 +405,32 @@ async fn execute_query_on_databases(
     Ok(())
 }
 
+// This command was in lib.rs, it's now consolidated here for a single binary entry point.
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init()) // Plugin from lib.rs, now correctly initialized.
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            get_connections,
+            save_connections,
+            delete_connection,
+            get_databases,
+            execute_query_on_databases,
+        ])
+        .run(tauri::generate_context!())
+        .expect("Erro ao iniciar o app");
+}
+
 fn write_all_csv(path: &PathBuf, results: &[(String, QueryResult)]) -> Result<(), String> {
     let mut writer = csv::Writer::from_path(path)
         .map_err(|e| format!("Erro ao criar arquivo CSV: {}", e))?;
 
-    // Descobre o maior conjunto de headers
     let mut all_headers = vec!["db".to_string()];
     if let Some((_, first_result)) = results.iter().find(|(_, r)| !r.headers.is_empty()) {
         all_headers.extend(first_result.headers.clone());
@@ -379,18 +448,4 @@ fn write_all_csv(path: &PathBuf, results: &[(String, QueryResult)]) -> Result<()
     }
 
     writer.flush().map_err(|e| format!("Erro ao finalizar CSV: {}", e))
-}
-
-fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![
-            get_connections,
-            save_connections,
-            delete_connection,
-            get_databases,
-            execute_query_on_databases,
-        ])
-        .run(tauri::generate_context!())
-        .expect("Erro ao iniciar o app");
 }

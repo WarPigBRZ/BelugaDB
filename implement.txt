@@ -1,0 +1,27 @@
+Funcionalidades a Implementar:
+
+Suporte Completo a SQL:
+
+Operações: Permitir a execução de INSERT, UPDATE, DELETE e outros comandos DDL/DML.
+Feedback: Para operações que não retornam dados, exibir uma mensagem de status clara (ex: "3 linha(s) afetada(s)").
+Múltiplas Queries: Permitir a execução de scripts com múltiplos comandos separados por ;. Os resultados de múltiplos SELECTs devem ser exibidos em abas separadas na área de resultados.
+Histórico de Queries e Snippets:
+
+Descrição: Manter um histórico de queries executadas e permitir que o usuário salve scripts reutilizáveis (snippets).
+UI: Um painel lateral com duas abas: "Histórico" e "Snippets".
+Funcionalidades:
+Histórico: Lista pesquisável, armazenando SQL, conexão, timestamp e status.
+Snippets: Organização em pastas (árvore), com suporte a nome, descrição e placeholders (ex: {{id_usuario}}) para preenchimento antes da execução.
+Persistência: Utilizar um banco de dados local (SQLite recomendado) para armazenar os dados de forma performática.
+Autocomplete Inteligente:
+
+Descrição: Sugestões de palavras-chave SQL, tabelas e colunas no editor de query.
+Lógica Multi-DB: Ao digitar, a aplicação usará uma conexão "base" para as sugestões de schema. Uma modal permitirá que o usuário escolha qual das conexões ativas será essa base.
+Ferramenta de Importação de CSV:
+
+Descrição: Um assistente (wizard) para guiar o usuário na importação de dados de um arquivo CSV para uma tabela.
+Fluxo:
+Usuário seleciona a conexão e o arquivo CSV.
+Apresentar uma tela para mapear as colunas do CSV para as colunas da tabela de destino.
+Executar a importação em lote (batch insert) dentro de uma transação, exibindo uma barra de progresso.
+Espero que este resumo ajude a organizar os próximos passos do projeto!

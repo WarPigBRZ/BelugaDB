@@ -36,47 +36,71 @@ interface QueryResult {
   rows: string[][];
 }
 
+// NOVO: Estrutura para o resultado de uma execução (SELECT ou MUTATION)
+// Corresponde ao enum `ExecutionResult` do Rust
+type ExecutionResult =
+  | { type: 'select'; payload: QueryResult }
+  | { type: 'mutation'; payload: { affectedRows: number } };
+
+// ATUALIZADO: Estrutura do status de um banco de dados
 interface DatabaseStatus {
   name: string;
   status: ExecutionStatus;
   log?: string;
-  result?: QueryResult;
+  results: ExecutionResult[]; // <-- Alterado de `result` para `results` (array)
 }
 
-const QueryResultModal = ({
+const ExecutionResultModal = ({
   isOpen,
   onClose,
-  result,
+  results,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  result: QueryResult | null;
+  results: ExecutionResult[] | null;
 }) => {
-  if (!isOpen || !result) return null;
+  if (!isOpen || !results || results.length === 0) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content result-modal-content" onClick={(e) => e.stopPropagation()}>
-        <h2>Resultado da Query</h2>
-        <div className="result-table-container">
-          <table>
-            <thead>
-              <tr>
-                {result.headers.map((header, index) => (
-                  <th key={index}>{header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {result.rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {row.map((cell, cellIndex) => (
-                    <td key={cellIndex}>{cell}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <h2>Resultados da Execução</h2>
+        <div className="result-list-container">
+          {results.map((result, index) => (
+            <div key={index} className="result-item">
+              <h4>Query {index + 1}</h4>
+              {result.type === 'select' ? (
+                <div className="result-table-container">
+                  {result.payload.rows.length > 0 ? (
+                    <table>
+                      <thead>
+                        <tr>
+                          {result.payload.headers.map((header, hIndex) => (
+                            <th key={hIndex}>{header}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.payload.rows.map((row, rIndex) => (
+                          <tr key={rIndex}>
+                            {row.map((cell, cIndex) => (
+                              <td key={cIndex}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p><i>Query executada com sucesso, mas não retornou linhas.</i></p>
+                  )}
+                </div>
+              ) : (
+                <p className="mutation-result">
+                  ✔️ Sucesso! {result.payload.affectedRows} linha(s) afetada(s).
+                </p>
+              )}
+            </div>
+          ))}
         </div>
         <div className="modal-actions">
           <button type="button" onClick={onClose} className="action-button">
@@ -199,17 +223,17 @@ const ExecutionScreen = ({
 }) => {
   // Inicializa ou reseta o estado dos resultados sempre que a tela é exibida com novos bancos
   const [results, setResults] = useState<DatabaseStatus[]>(() =>
-    databases.map(name => ({ name, status: 'waiting' as ExecutionStatus, log: undefined }))
+    databases.map(name => ({ name, status: 'waiting' as ExecutionStatus, log: undefined, results: [] }))
   );
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<QueryResult | null>(null);
+  const [selectedResults, setSelectedResults] = useState<ExecutionResult[] | null>(null);
 
   useEffect(() => {
     // Garante que a lista seja resetada se o usuário voltar e executar novamente
-    setResults(databases.map(name => ({ name, status: 'waiting' as ExecutionStatus, log: undefined })));
+    setResults(databases.map(name => ({ name, status: 'waiting' as ExecutionStatus, log: undefined, results: [] })));
 
-// Escuta os eventos de status vindos do Rust
+    // Escuta os eventos de status vindos do Rust
     const unlistenPromise = listen<DatabaseStatus>('execution-status-update', (event) => {
       console.log('Status update received:', event.payload);
       setResults(prevResults =>
@@ -232,9 +256,9 @@ const ExecutionScreen = ({
     return null;
   };
 
-  const handleViewResult = (result: QueryResult | undefined) => {
-    if (result) {
-      setSelectedResult(result);
+  const handleViewResult = (results: ExecutionResult[] | undefined) => {
+    if (results && results.length > 0) {
+      setSelectedResults(results);
       setIsResultModalOpen(true);
     }
   };
@@ -244,10 +268,10 @@ const ExecutionScreen = ({
   return (
     <div className="execution-screen-container">
       <LogModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} logs={errorLogs} />
-      <QueryResultModal
+      <ExecutionResultModal
         isOpen={isResultModalOpen}
         onClose={() => setIsResultModalOpen(false)}
-        result={selectedResult}
+        results={selectedResults}
       />
       <div className="execution-list">
         <ul>
@@ -255,7 +279,7 @@ const ExecutionScreen = ({
             <li key={result.name}>
               <span>{result.name}</span>
               <div className="status-container">
-                {result.result && <button className="view-result-button" onClick={() => handleViewResult(result.result)}>👁️</button>}
+                {result.results && result.results.length > 0 && <button className="view-result-button" onClick={() => handleViewResult(result.results)}>👁️</button>}
                 {getStatusIcon(result.status)}
               </div>
             </li>
