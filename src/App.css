@@ -21,9 +21,6 @@
   --color-warning-bg: #4d4324;
   --color-warning-border: #a68a3a;
   --color-warning-hover-bg: #63542e;
-
-
-
 }
 
 @font-face {
@@ -113,26 +110,26 @@ h1 {
 
 .connections-container {
   display: flex;
-  flex-direction: column; /* Empilha o logo e o conte�do */
+  flex-direction: column;
   align-items: center;
-  justify-content: center; /* Centraliza o bloco principal na tela */
-  gap: 1rem; /* Espa�o entre o logo e o conte�do */
+  justify-content: center;
+  gap: 1rem;
   width: 100%;
 }
 
 .connections-content {
   display: flex;
-  flex-direction: row; /* Alinha a lista e os bot�es lado a lado */
-  align-items: flex-start; /* Alinha os itens no topo */
+  flex-direction: row;
+  align-items: flex-start;
   justify-content: center;
-  gap: 1.5rem; /* Espa�o entre a lista e os bot�es */
+  gap: 1.5rem;
   width: 100%;
-  max-width: 700px; /* Define uma largura m�xima para o conjunto */
+  max-width: 700px;
 }
 
 .connections-list {
-  flex-grow: 1; /* A lista ocupa o espa�o dispon�vel */
-  min-width: 300px; /* Largura m�nima para a lista */
+  flex-grow: 1;
+  min-width: 300px;
   background-color: var(--color-widget-bg);
   border-radius: 8px;
   border: 1px solid var(--color-border);
@@ -167,12 +164,12 @@ h1 {
 
 .connection-actions {
   display: flex;
-  flex-direction: column; /* Bot�es empilhados verticalmente */
-  justify-content: flex-start; /* Alinha os bot�es no topo */
-  gap: 0.75rem; /* Espaço entre os botões */
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.75rem;
 }
 .connect-button {
-  background-color: var(--color-connect-bg); /* Green background */
+  background-color: var(--color-connect-bg);
   border-color: var(--color-connect-border);
 }
 
@@ -387,30 +384,16 @@ h1 {
 }
 
 .database-list-grid {
-  /* A propriedade 'columns' é a forma correta de criar um layout de "jornal",
-     onde o conteúdo flui verticalmente para preencher as colunas. */
-  columns: 220px; /* Define a largura ideal de cada coluna */
-  column-gap: 1.5rem; /* Espaçamento entre as colunas */
+  columns: 220px;
+  column-gap: 1.5rem;
 }
 
 .database-list-grid .checkbox-label {
-  display: block; /* Essencial para que o layout de colunas funcione */
-  break-inside: avoid-column; /* Evita que um item quebre entre duas colunas */
+  display: block;
+  break-inside: avoid-column;
   padding-block: 0.3rem;
 }
 
-.database-list-grid .checkbox-label {
-  /* Evita que um item quebre e apareça em duas colunas diferentes */
-  break-inside: avoid-column;
-  display: block; /* Garante que o 'break-inside' e o layout de coluna funcionem corretamente */
-  padding-block: 0.3rem; /* Adiciona um pequeno espaçamento vertical */
-}
-
-.database-list-grid .checkbox-label {
-  /* Evita que um item quebre entre duas colunas */
-  break-inside: avoid-column;
-  padding-block: 0.3rem; /* Espaçamento vertical entre os itens */
-}
 .query-editor textarea {
   width: 100%;
   min-height: 200px;
@@ -423,25 +406,6 @@ h1 {
   font-size: 1rem;
   resize: vertical;
   box-sizing: border-box;
-}
-
-.query-editor textarea:focus {
-  outline: none;
-  border-color: var(--color-connect-border);
-  box-shadow: 0 0 0 2px var(--color-connect-hover-bg);
-}
-
-.screen-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  width: 100%;
-}
-
-.query-editor textarea:focus {
-  outline: none;
-  border-color: var(--color-connect-border);
-  box-shadow: 0 0 0 2px var(--color-connect-hover-bg);
 }
 
 .screen-actions {
@@ -567,8 +531,8 @@ h1 {
 .tab-container {
   display: flex;
   flex-direction: column;
-  flex-grow: 1; /* Faz o container ocupar o espaço vertical disponível */
-  overflow: hidden; /* Previne que o conteúdo vaze do modal */
+  flex-grow: 1;
+  overflow: hidden;
   margin-top: 1rem;
 }
 
@@ -601,10 +565,10 @@ h1 {
 
 .tab-button.active {
   background-color: var(--color-background);
-  border-bottom-color: var(--color-background); /* Truque para "conectar" com o painel */
+  border-bottom-color: var(--color-background);
   color: var(--color-text);
   font-weight: 600;
-  transform: translateY(1px); /* Efeito sutil de elevação */
+  transform: translateY(1px);
 }
 
 .result-table-container {
@@ -617,7 +581,7 @@ h1 {
 
 .tab-content {
   flex-grow: 1;
-  overflow-y: auto; /* Permite scroll apenas no painel de conteúdo */
+  overflow-y: auto;
   padding-top: 1rem;
 }
 
@@ -664,4 +628,337 @@ h1 {
   background-color: var(--color-error-bg);
   border: 1px solid var(--color-error-border);
   color: var(--color-error);
+}
+
+/* --- ESTILOS DO PAINEL DE UTILIDADES (HISTÓRICO / SNIPPETS) --- */
+
+.utility-panel {
+  width: 100%;
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-top: 1.5rem;
+  transition: all 0.3s ease-in-out;
+}
+
+.utility-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+}
+
+.utility-panel.expanded .utility-header {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.utility-header:hover {
+  background-color: var(--color-default-button-bg);
+}
+
+.collapse-icon {
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  transition: transform 0.3s ease-in-out;
+}
+
+.utility-panel.expanded .collapse-icon {
+  transform: rotate(180deg);
+}
+
+.utility-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.utility-tab-button {
+  background: none;
+  border: none;
+  color: var(--color-text-dim);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 1em;
+}
+
+.utility-tab-button.active {
+  background-color: var(--color-default-button-bg);
+  color: var(--color-text);
+  font-weight: bold;
+}
+
+.utility-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 1rem;
+  text-align: left;
+}
+.utility-content ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.utility-content p.empty-message {
+  text-align: center;
+  color: var(--color-text-dim);
+  padding: 2rem;
+  margin: 0;
+}
+
+/* Estilos da lista de Histórico */
+.history-list .clear-history-button {
+  float: right;
+  margin-bottom: 0.5rem;
+  background: none;
+  border: 1px solid var(--color-error-border);
+  color: var(--color-text-dim);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+.history-list li {
+  padding: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+.history-list li:hover {
+  background-color: var(--color-default-button-bg);
+}
+.history-list li pre {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9em;
+  background-color: var(--color-background);
+  padding: 0.5em;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+.history-list li span {
+  display: inline !important;
+  white-space: pre;
+}
+/* Estilos da lista de Snippets */
+.snippets-list .new-snippet-button {
+  display: block;
+  margin-bottom: 1rem;
+  margin-left: auto;
+}
+.snippets-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.snippet-info p {
+  margin: 0.25rem 0 0 0;
+  padding: 0;
+  font-size: 0.9em;
+  color: var(--color-text-dim);
+}
+.snippet-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.snippet-actions button {
+  background: var(--color-default-button-bg);
+  border: 1px solid var(--color-default-button-border);
+  color: var(--color-text);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+/* Estilos para o Modal de Snippet */
+.snippet-modal-content {
+  max-width: 800px;
+}
+.snippet-editor {
+  height: 300px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow-y: auto;
+  background-color: var(--color-background);
+}
+
+/*
+--- ADIÇÕES E CORREÇÕES PARA O App.css ORIGINAL ---
+Copie e cole este bloco inteiro no FINAL do seu arquivo App.css
+*/
+
+/* CORREÇÃO 1: Alinhamento na Tela de Execução */
+.execution-list li > span:first-child {
+  flex-grow: 1;
+  text-align: left;
+}
+
+/* ESTILOS PARA O NOVO PAINEL DE UTILIDADES (Histórico/Snippets) */
+/* Este estilo imita o .query-editor, como solicitado */
+.utility-panel {
+  background-color: var(--color-widget-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  width: 100%;
+  margin-top: 1.5rem;
+}
+
+.utility-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+  border-bottom: 1px solid transparent; /* Apenas mostra a borda quando expandido */
+}
+
+.utility-panel.expanded .utility-header {
+  border-bottom-color: var(--color-border);
+}
+
+.utility-header:hover {
+  background-color: var(--color-default-button-bg);
+}
+
+.utility-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem; /* Espaçamento entre o botão e a seta */
+}
+
+.header-action-button {
+  padding: 0.2em 0.6em;
+  font-size: 1em;
+}
+
+.collapse-icon {
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  transition: transform 0.3s ease-in-out;
+}
+
+.utility-panel.expanded .collapse-icon {
+  transform: rotate(180deg);
+}
+
+.utility-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.utility-tab-button {
+  background: none;
+  border: none;
+  color: var(--color-text-dim);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 1em;
+}
+
+.utility-tab-button.active {
+  background-color: var(--color-default-button-bg);
+  color: var(--color-text);
+  font-weight: bold;
+}
+
+.utility-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 1rem;
+  text-align: left;
+}
+
+.utility-content ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.utility-content p.empty-message {
+  text-align: center;
+  color: var(--color-text-dim);
+  padding: 2rem;
+  margin: 0;
+}
+
+/* Estilos da lista de Histórico */
+.history-list li {
+  padding: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.history-list li:hover {
+  background-color: var(--color-default-button-bg);
+}
+
+/* CORREÇÃO 2: Formatação do texto SQL no histórico */
+.history-list li pre {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9em;
+  background-color: var(--color-background);
+  padding: 0.5em;
+  border-radius: 4px;
+  white-space: pre-wrap; /* Garante a quebra de linha correta */
+}
+
+.history-list li .history-query-details {
+  display: block;
+  font-size: 0.8em;
+  color: var(--color-text-dim);
+}
+
+/* Estilos da lista de Snippets */
+.snippets-list .new-snippet-button {
+  display: block;
+  margin-bottom: 1rem;
+  margin-left: auto;
+}
+
+.snippets-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.snippet-info p {
+  margin: 0.25rem 0 0 0;
+  padding: 0;
+  font-size: 0.9em;
+  color: var(--color-text-dim);
+}
+
+.snippet-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.snippet-actions button {
+  background: var(--color-default-button-bg);
+  border: 1px solid var(--color-default-button-border);
+  color: var(--color-text);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+/* Estilos para o Modal de Snippet */
+.snippet-modal-content {
+  max-width: 800px;
+}
+
+.snippet-editor {
+  height: 300px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow-y: auto;
+  background-color: var(--color-background);
 }
