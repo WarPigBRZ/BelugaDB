@@ -1,7 +1,5 @@
 :root {
   --font-sans: "Segoe UI", "Arial", system-ui, -apple-system, BlinkMacSystemFont, Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-
-  /* Cores extraídas do seu projeto Python */
   --color-background: #1c2332;
   --color-widget-bg: #161c2b;
   --color-border: #242a3a;
@@ -13,11 +11,9 @@
   --color-connect-hover-bg: #324b35;
   --color-default-button-bg: #2a3449;
   --color-default-button-border: #445069;
-
   --color-error-bg: #361f1f;
   --color-error-border: #b44a4a;
   --color-error-hover-bg: #4a2a2a;
-
   --color-warning-bg: #4d4324;
   --color-warning-border: #a68a3a;
   --color-warning-hover-bg: #63542e;
@@ -630,164 +626,7 @@ h1 {
   color: var(--color-error);
 }
 
-/* --- ESTILOS DO PAINEL DE UTILIDADES (HISTÓRICO / SNIPPETS) --- */
-
-.utility-panel {
-  width: 100%;
-  background-color: var(--color-widget-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  margin-top: 1.5rem;
-  transition: all 0.3s ease-in-out;
-}
-
-.utility-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-}
-
-.utility-panel.expanded .utility-header {
-  border-bottom: 1px solid var(--color-border);
-}
-
-.utility-header:hover {
-  background-color: var(--color-default-button-bg);
-}
-
-.collapse-icon {
-  font-size: 0.8rem;
-  color: var(--color-text-dim);
-  transition: transform 0.3s ease-in-out;
-}
-
-.utility-panel.expanded .collapse-icon {
-  transform: rotate(180deg);
-}
-
-.utility-tabs {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.utility-tab-button {
-  background: none;
-  border: none;
-  color: var(--color-text-dim);
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 1em;
-}
-
-.utility-tab-button.active {
-  background-color: var(--color-default-button-bg);
-  color: var(--color-text);
-  font-weight: bold;
-}
-
-.utility-content {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 1rem;
-  text-align: left;
-}
-.utility-content ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.utility-content p.empty-message {
-  text-align: center;
-  color: var(--color-text-dim);
-  padding: 2rem;
-  margin: 0;
-}
-
-/* Estilos da lista de Histórico */
-.history-list .clear-history-button {
-  float: right;
-  margin-bottom: 0.5rem;
-  background: none;
-  border: 1px solid var(--color-error-border);
-  color: var(--color-text-dim);
-  border-radius: 4px;
-  padding: 0.2rem 0.5rem;
-  cursor: pointer;
-}
-.history-list li {
-  padding: 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--color-border);
-}
-.history-list li:hover {
-  background-color: var(--color-default-button-bg);
-}
-.history-list li pre {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.9em;
-  background-color: var(--color-background);
-  padding: 0.5em;
-  border-radius: 4px;
-  white-space: pre-wrap;
-}
-.history-list li span {
-  display: inline !important;
-  white-space: pre;
-}
-/* Estilos da lista de Snippets */
-.snippets-list .new-snippet-button {
-  display: block;
-  margin-bottom: 1rem;
-  margin-left: auto;
-}
-.snippets-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
-}
-.snippet-info p {
-  margin: 0.25rem 0 0 0;
-  padding: 0;
-  font-size: 0.9em;
-  color: var(--color-text-dim);
-}
-.snippet-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.snippet-actions button {
-  background: var(--color-default-button-bg);
-  border: 1px solid var(--color-default-button-border);
-  color: var(--color-text);
-  padding: 0.3rem 0.6rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8em;
-}
-
-/* Estilos para o Modal de Snippet */
-.snippet-modal-content {
-  max-width: 800px;
-}
-.snippet-editor {
-  height: 300px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  overflow-y: auto;
-  background-color: var(--color-background);
-}
-
-/*
---- ADIÇÕES E CORREÇÕES PARA O App.css ORIGINAL ---
-Copie e cole este bloco inteiro no FINAL do seu arquivo App.css
-*/
+/* --- ADIÇÕES E CORREÇÕES PARA O App.css ORIGINAL --- */
 
 /* CORREÇÃO 1: Alinhamento na Tela de Execução */
 .execution-list li > span:first-child {
@@ -941,12 +780,8 @@ Copie e cole este bloco inteiro no FINAL do seu arquivo App.css
 }
 
 .snippet-actions button {
-  background: var(--color-default-button-bg);
-  border: 1px solid var(--color-default-button-border);
-  color: var(--color-text);
+  /* Estilo base para os botões de snippet */
   padding: 0.3rem 0.6rem;
-  border-radius: 4px;
-  cursor: pointer;
   font-size: 0.8em;
 }
 
@@ -962,3 +797,196 @@ Copie e cole este bloco inteiro no FINAL do seu arquivo App.css
   overflow-y: auto;
   background-color: var(--color-background);
 }
+/* CORREÇÃO 3: Adicionado para o Modal de Placeholders */
+.placeholder-modal-content {
+    max-width: 600px;
+}
+
+.placeholder-input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.placeholder-input-group label {
+    font-weight: bold;
+    color: var(--color-text-dim);
+}
+
+/* --- ADIÇÕES PARA O AUTOCOMPLETE --- */
+
+/* Estilos para os itens da lista de bancos de dados */
+.db-list-item {
+    cursor: pointer;
+    transition: color 0.2s ease-in-out;
+}
+
+.db-list-item.not-indexed {
+    color: var(--color-text-dim);
+}
+
+.db-list-item.indexed {
+    color: var(--color-text);
+}
+
+.db-list-item.autocomplete-source {
+    color: var(--color-connect-border);
+    font-weight: bold;
+}
+
+/* Estilos para a legenda (Tooltip) */
+.legend-tooltip-container {
+    position: relative;
+    display: inline-block;
+}
+
+.legend-icon {
+    cursor: help;
+    color: var(--color-text-dim);
+}
+
+.legend-tooltip-content {
+    visibility: hidden;
+    width: 300px;
+    background-color: var(--color-background);
+    color: var(--color-text);
+    text-align: left;
+    border-radius: 6px;
+    padding: 1rem;
+    position: absolute;
+    z-index: 10;
+    top: 150%; /* <--- CORRIGIDO PARA ABRIR PARA BAIXO */
+    left: 50%;
+    margin-left: -150px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    border: 1px solid var(--color-border-hover);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.legend-tooltip-container:hover .legend-tooltip-content {
+    visibility: visible;
+    opacity: 1;
+}
+
+.legend-tooltip-content strong {
+    color: var(--color-text);
+}
+.legend-tooltip-content p {
+    font-size: 0.9em;
+    margin-top: 0.5rem;
+}
+.legend-tooltip-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+    font-size: 0.9em;
+}
+.legend-tooltip-content li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+.legend-color-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    margin-right: 0.5rem;
+    border: 1px solid var(--color-border);
+}
+.legend-color-box.autocomplete-source { background-color: var(--color-connect-border); }
+.legend-color-box.indexed { background-color: var(--color-text); }
+.legend-color-box.not-indexed { background-color: var(--color-text-dim); }
+
+/* --- ADIÇÕES PARA O OVERLAY DE SINCRONIZAÇÃO --- */
+
+.database-list {
+  position: relative; /* Necessário para o overlay funcionar dentro dele */
+}
+
+.sync-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(22, 28, 43, 0.8); /* Fundo semi-transparente */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 8px; /* Para acompanhar o container pai */
+  color: var(--color-text);
+  font-size: 1.1em;
+}
+
+.sync-spinner {
+  border: 4px solid var(--color-border);
+  border-top: 4px solid var(--color-connect-border);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- ADIÇÕES PARA A CAIXA DE SUGESTÕES DO AUTOCOMPLETE --- */
+
+.editor-wrapper {
+  position: relative;
+}
+
+.autocomplete-box {
+  position: absolute;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 6px;
+  margin-top: 4px;
+  z-index: 100;
+  width: 300px;
+  max-height: 250px;
+  overflow-y: auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.autocomplete-box ul {
+  list-style: none;
+  padding: 0.5rem;
+  margin: 0;
+}
+
+.autocomplete-box li {
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--color-text);
+}
+
+.autocomplete-box li:hover {
+  background-color: var(--color-default-button-bg);
+}
+
+/* --- ADIÇÕES PARA AUTOCOMPLETE E CORREÇÃO DE MODAL --- */
+
+/* CORREÇÃO: Define uma largura fixa maior para o modal de placeholders */
+.placeholder-modal-content {
+  max-width: 600px;
+}
+
+/* Estilos para o container do editor que terá a caixa de sugestões */
+.editor-wrapper {
+  position: relative;
+}
+
+/* Estilos para a caixa de sugestões do autocomplete */
+.autocomplete-box { position: absolute; background-color: var(--color-background); border: 1px solid var(--color-border-hover); border-radius: 6px; margin-top: 4px; z-index: 100; max-height: 250px; overflow-y: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* CORREÇÃO DE LARGURA */ width: max-content; min-width: 350px; max-width: 600px; }
+.autocomplete-box ul { list-style: none; padding: 0.5rem; margin: 0; }
+.autocomplete-box li { padding: 0.5rem 0.8rem; cursor: pointer; border-radius: 4px; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.autocomplete-box li.active, .autocomplete-box li:hover { background-color: var(--color-default-button-bg); color: #fff; }
