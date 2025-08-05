@@ -33,3 +33,5 @@ rust_decimal = { version = "1", features = ["db-postgres"] }
 postgis = "0.9.0"
 geo-types = "0.7"
 wkt = "0.10"
+rusqlite = { version = "0.31", features = ["bundled"] }
+lazy_static = "1.4.0"
