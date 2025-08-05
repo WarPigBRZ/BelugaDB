@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, KeyboardEvent, useRef } from 'react';
 import './App.css';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -12,272 +12,59 @@ import 'prismjs/themes/prism-tomorrow.css';
 type Screen = 'connections' | 'query' | 'execution';
 type SaveOption = 'single' | 'separate' | 'none';
 type UtilityPanelTab = 'history' | 'snippets';
+type SuggestionContext = 'schema' | 'table' | 'column' | 'keyword' | null;
 
-interface Connection {
-  id: string;
-  name: string;
-  host: string;
-  port: string;
-  user: string;
-  pass: string;
-  savePass: boolean;
-}
+interface Connection { id: string; name: string; host: string; port: string; user: string; pass: string; savePass: boolean; }
 type ConnectionFormData = Omit<Connection, 'id'>;
 type ExecutionStatus = 'waiting' | 'success' | 'error';
-interface QueryResult {
-  headers: string[];
-  rows: string[][];
-}
-type ExecutionResult =
-  | { type: 'select'; payload: QueryResult }
-  | { type: 'mutation'; payload: { affectedRows: number } }
-  | { type: 'error'; payload: string };
-interface DatabaseStatus {
-  name: string;
-  status: ExecutionStatus;
-  log?: string;
-  results: ExecutionResult[];
-}
-interface DatabaseInfo {
-  name: string;
-  status: number;
-}
-interface HistoryEntry {
-    id: number;
-    query_text: string;
-    connection_name: string;
-    status: string;
-    timestamp: string;
-}
-interface Snippet {
-    id: number;
-    name: string;
-    description: string;
-    content: string;
-}
+interface QueryResult { headers: string[]; rows: string[][]; }
+type ExecutionResult = | { type: 'select'; payload: QueryResult } | { type: 'mutation'; payload: { affectedRows: number } } | { type: 'error'; payload: string };
+interface DatabaseStatus { name: string; status: ExecutionStatus; log?: string; results: ExecutionResult[]; }
+interface DatabaseInfo { name: string; status: number; }
+interface HistoryEntry { id: number; query_text: string; connection_name: string; status: string; timestamp: string; }
+interface Snippet { id: number; name: string; description: string; content: string; }
 type SnippetFormData = Omit<Snippet, 'id'>;
+interface ColumnInfo { name: string; data_type: string; }
+interface TableInfo { schema: string; name: string; columns: ColumnInfo[]; }
+interface SchemaInfo { tables: TableInfo[]; }
 
 
-// --- COMPONENTES DE MODAL ---
-const SnippetModal = ({
-    isOpen,
-    onClose,
-    onSave,
-    initialData,
-}: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: SnippetFormData) => void;
-    initialData?: Snippet;
-}) => {
-    const emptyForm: SnippetFormData = { name: '', description: '', content: '' };
-    const [formData, setFormData] = useState(initialData || emptyForm);
-    const isEditing = !!initialData;
-
+// --- COMPONENTES ---
+const AutocompleteBox = ({ suggestions, onSelect, activeIndex }: { suggestions: string[]; onSelect: (suggestion: string) => void; activeIndex: number; }) => {
+    const scrollRef = useRef<HTMLUListElement>(null);
     useEffect(() => {
-        setFormData(initialData || emptyForm);
-    }, [initialData, isOpen]);
-
-    if (!isOpen) return null;
-
-    const handleSave = () => {
-        if (formData.name && formData.content) {
-            onSave(formData);
+        if (scrollRef.current) {
+            const activeItem = scrollRef.current.children[activeIndex] as HTMLLIElement;
+            if (activeItem) {
+                activeItem.scrollIntoView({ block: 'nearest' });
+            }
         }
-    };
+    }, [activeIndex]);
 
+    if (suggestions.length === 0) return null;
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content snippet-modal-content" onClick={(e) => e.stopPropagation()}>
-                <h2>{isEditing ? 'Editar Snippet' : 'Novo Snippet'}</h2>
-                <div className="modal-form">
-                    <input
-                        type="text"
-                        placeholder="Nome do Snippet"
-                        value={formData.name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    />
-                    <input
-                        type="text"
-                        placeholder="Descrição (opcional)"
-                        value={formData.description}
-                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    />
-                    <div className="snippet-editor">
-                        <Editor
-                            value={formData.content}
-                            onValueChange={code => setFormData(prev => ({...prev, content: code}))}
-                            highlight={code => highlight(code, Prism.languages.sql, 'sql')}
-                            padding={10}
-                            textareaClassName="search-input"
-                            placeholder="Cole seu script SQL aqui..."
-                        />
-                    </div>
-                    <div className="modal-actions">
-                        <button type="button" onClick={onClose} className="action-button">Cancelar</button>
-                        <button type="button" onClick={handleSave} className="action-button save-button">Salvar</button>
-                    </div>
-                </div>
-            </div>
+        <div className="autocomplete-box">
+            <ul ref={scrollRef}>
+                {suggestions.map((item, index) => (
+                    <li key={index} className={index === activeIndex ? 'active' : ''} onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}>
+                        {item}
+                    </li>
+                ))}
+            </ul>
         </div>
     );
 };
-const ExecutionResultModal = ({ isOpen, onClose, results }: { isOpen: boolean; onClose: () => void; results: ExecutionResult[] | null; }) => {
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
-  useEffect(() => { if (isOpen) setActiveTabIndex(0); }, [isOpen, results]);
-  if (!isOpen || !results || results.length === 0) return null;
-  const getTabInfo = (result: ExecutionResult, index: number) => {
-    switch (result.type) {
-      case 'select': return { icon: '📄', label: `SELECT (${result.payload.rows.length} linhas)` };
-      case 'mutation': return { icon: '✔️', label: `Mutação` };
-      case 'error': return { icon: '❌', label: `Erro Query ${index + 1}` };
-      default: return { icon: '❓', label: `Query ${index + 1}` };
-    }
-  };
-  const activeResult = results[activeTabIndex];
-  return (
-    <div className="modal-overlay" onClick={onClose}><div className="modal-content result-modal-content" onClick={(e) => e.stopPropagation()}><h2>Resultados da Execução</h2><div className="tab-container"><div className="tab-buttons">{results.map((result, index) => { const { icon, label } = getTabInfo(result, index); return (<button key={index} className={`tab-button ${index === activeTabIndex ? 'active' : ''}`} onClick={() => setActiveTabIndex(index)}><span>{icon}</span><span>{label}</span></button>); })}</div><div className="tab-content">{activeResult.type === 'select' ? (<div className="result-table-container">{activeResult.payload.rows.length > 0 ? (<table><thead><tr>{activeResult.payload.headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead><tbody>{activeResult.payload.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table>) : <p><i>Query executada com sucesso, mas não retornou linhas.</i></p>}</div>) : activeResult.type === 'mutation' ? (<p className="mutation-result">✔️ Sucesso! {activeResult.payload.affectedRows} linha(s) afetada(s).</p>) : <p className="error-result">❌ {activeResult.payload}</p>}</div></div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Fechar</button></div></div></div>
-  );
-};
-const LogModal = ({ isOpen, onClose, logs }: { isOpen: boolean; onClose: () => void; logs: DatabaseStatus[]; }) => {
-    if (!isOpen) return null;
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content log-modal-content" onClick={(e) => e.stopPropagation()}><h2>Logs de Erro</h2><div className="log-entries">{logs.map((log, index) => (<div key={index} className="log-entry"><h4>{log.name}</h4><pre>{log.log}</pre></div>))}</div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Fechar</button></div></div></div>);
-};
-const ReturnOptionsModal = ({ isOpen, onClose, onSelectPrevious, onSelectErrors }: { isOpen: boolean; onClose: () => void; onSelectPrevious: () => void; onSelectErrors: () => void; }) => {
-    if (!isOpen) return null;
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>Opções de Retorno</h2><p>Selecione qual tipo de seleção você deseja manter ao retornar para a página anterior.</p><div className="modal-actions return-options"><button type="button" onClick={onSelectPrevious} className="action-button">Seleção Anterior</button><button type="button" onClick={onSelectErrors} className="action-button">Somente Erros</button><button type="button" onClick={onClose} className="action-button">Cancelar</button></div></div></div>);
-};
-const SaveOptionsModal = ({ isOpen, onClose, onSelect }: { isOpen: boolean; onClose: () => void; onSelect: (option: SaveOption) => void; }) => {
-    if (!isOpen) return null;
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>Salvar Resultados</h2><p>Como você deseja salvar os resultados da query?</p><div className="modal-actions return-options"><button type="button" onClick={() => onSelect('single')} className="action-button">Arquivo Único</button><button type="button" onClick={() => onSelect('separate')} className="action-button">Arquivos Separados</button><button type="button" onClick={() => onSelect('none')} className="action-button">Não Salvar</button><button type="button" onClick={onClose} className="action-button">Cancelar</button></div></div></div>);
-};
-const ConnectionModal = ({ mode, isOpen, onClose, onSave, initialValues }: { mode: 'new' | 'edit'; isOpen: boolean; onClose: () => void; onSave: (data: ConnectionFormData) => void; initialValues?: ConnectionFormData; }) => {
-  const emptyForm: ConnectionFormData = { name: '', host: '', port: '', user: '', pass: '', savePass: false };
-  const [formData, setFormData] = useState(initialValues || emptyForm);
-  useEffect(() => { if (isOpen) { setFormData(initialValues || emptyForm); } }, [isOpen, initialValues]);
-  if (!isOpen) { return null; }
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (formData.name.trim()) { onSave(formData); } };
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => { const { name, value, type, checked } = e.target; setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value, })); };
-  return (
-    <div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>{mode === 'new' ? 'Nova Conexão' : 'Editar Conexão'}</h2><form onSubmit={handleSubmit} className="modal-form"><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Nome da Conexão" autoFocus /><input type="text" name="host" value={formData.host} onChange={handleChange} placeholder="IP do Servidor" /><input type="text" name="port" value={formData.port} onChange={handleChange} placeholder="Porta do Servidor" /><input type="text" name="user" value={formData.user} onChange={handleChange} placeholder="Usuário" /><input type="password" name="pass" value={formData.pass} onChange={handleChange} placeholder="Senha" /><div><label className="checkbox-label"><input type="checkbox" name="savePass" checked={formData.savePass} onChange={handleChange} /> Salvar Senha</label></div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Cancelar</button><button type="submit" className="action-button save-button">Salvar</button></div></form></div></div>
-  );
-};
-const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void; }) => {
-    if (!isOpen) { return null; }
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>Confirmar Exclusão</h2><p>Tem certeza que deseja excluir esta conexão?</p><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Cancelar</button><button type="button" onClick={onConfirm} className="action-button delete-button">Excluir</button></div></div></div>);
-};
+const SyncOverlay = () => ( <div className="sync-overlay"><div className="sync-spinner"></div><span>Sincronizando...</span></div> );
+const SnippetModal = ({ isOpen, onClose, onSave, initialData }: { isOpen: boolean; onClose: () => void; onSave: (data: SnippetFormData) => void; initialData?: Snippet; }) => { const emptyForm: SnippetFormData = { name: '', description: '', content: '' }; const [formData, setFormData] = useState(initialData || emptyForm); const isEditing = !!initialData; useEffect(() => { setFormData(initialData || emptyForm); }, [initialData, isOpen]); if (!isOpen) return null; const handleSave = () => { if (formData.name && formData.content) { onSave(formData); } }; return ( <div className="modal-overlay" onClick={onClose}><div className="modal-content snippet-modal-content" onClick={(e) => e.stopPropagation()}><h2>{isEditing ? 'Editar Snippet' : 'Novo Snippet'}</h2><div className="modal-form"><input type="text" placeholder="Nome do Snippet" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} /><input type="text" placeholder="Descrição (opcional)" value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} /><div className="snippet-editor"><Editor value={formData.content} onValueChange={code => setFormData(prev => ({...prev, content: code}))} highlight={code => highlight(code, Prism.languages.sql, 'sql')} padding={10} textareaClassName="search-input" placeholder="Cole seu script SQL aqui... Use {{variavel}} para placeholders." /></div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Cancelar</button><button type="button" onClick={handleSave} className="action-button save-button">Salvar</button></div></div></div></div> ); };
+const PlaceholderModal = ({ isOpen, onClose, placeholders, onSubmit }: { isOpen: boolean; onClose: () => void; placeholders: string[]; onSubmit: (values: Record<string, string>) => void; }) => { const [values, setValues] = useState<Record<string, string>>({}); useEffect(() => { if (isOpen) { const initialValues: Record<string, string> = {}; placeholders.forEach(p => { initialValues[p] = ''; }); setValues(initialValues); } }, [isOpen, placeholders]); if (!isOpen) return null; const handleValueChange = (placeholder: string, value: string) => { setValues(prev => ({...prev, [placeholder]: value})); }; const handleSubmit = () => { onSubmit(values); onClose(); }; return ( <div className="modal-overlay" onClick={onClose}><div className="modal-content placeholder-modal-content" onClick={(e) => e.stopPropagation()}><h2>Preencher Variáveis do Snippet</h2><div className="modal-form">{placeholders.map(placeholder => ( <div key={placeholder} className="placeholder-input-group"><label htmlFor={placeholder}>{placeholder}</label><input id={placeholder} type="text" value={values[placeholder] || ''} onChange={(e) => handleValueChange(placeholder, e.target.value)} autoFocus={placeholders[0] === placeholder} /></div> ))}<div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Cancelar</button><button type="button" onClick={handleSubmit} className="action-button save-button">Confirmar</button></div></div></div></div> ); };
+const ExecutionResultModal = ({ isOpen, onClose, results }: { isOpen: boolean; onClose: () => void; results: ExecutionResult[] | null; }) => { const [activeTabIndex, setActiveTabIndex] = useState(0); useEffect(() => { if (isOpen) setActiveTabIndex(0); }, [isOpen, results]); if (!isOpen || !results || results.length === 0) return null; const getTabInfo = (result: ExecutionResult, index: number) => { switch (result.type) { case 'select': return { icon: '📄', label: `SELECT (${result.payload.rows.length} linhas)` }; case 'mutation': return { icon: '✔️', label: `Mutação` }; case 'error': return { icon: '❌', label: `Erro Query ${index + 1}` }; default: return { icon: '❓', label: `Query ${index + 1}` }; } }; const activeResult = results[activeTabIndex]; return ( <div className="modal-overlay" onClick={onClose}><div className="modal-content result-modal-content" onClick={(e) => e.stopPropagation()}><h2>Resultados da Execução</h2><div className="tab-container"><div className="tab-buttons">{results.map((result, index) => { const { icon, label } = getTabInfo(result, index); return (<button key={index} className={`tab-button ${index === activeTabIndex ? 'active' : ''}`} onClick={() => setActiveTabIndex(index)}><span>{icon}</span><span>{label}</span></button>); })}</div><div className="tab-content">{activeResult.type === 'select' ? (<div className="result-table-container">{activeResult.payload.rows.length > 0 ? (<table><thead><tr>{activeResult.payload.headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead><tbody>{activeResult.payload.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table>) : <p><i>Query executada com sucesso, mas não retornou linhas.</i></p>}</div>) : activeResult.type === 'mutation' ? (<p className="mutation-result">✔️ Sucesso! {activeResult.payload.affectedRows} linha(s) afetada(s).</p>) : <p className="error-result">❌ {activeResult.payload}</p>}</div></div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Fechar</button></div></div></div> ); };
+const LogModal = ({ isOpen, onClose, logs }: { isOpen: boolean; onClose: () => void; logs: DatabaseStatus[]; }) => { if (!isOpen) return null; return (<div className="modal-overlay" onClick={onClose}><div className="modal-content log-modal-content" onClick={(e) => e.stopPropagation()}><h2>Logs de Erro</h2><div className="log-entries">{logs.map((log, index) => (<div key={index} className="log-entry"><h4>{log.name}</h4><pre>{log.log}</pre></div>))}</div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Fechar</button></div></div></div>); };
+const ReturnOptionsModal = ({ isOpen, onClose, onSelectPrevious, onSelectErrors }: { isOpen: boolean; onClose: () => void; onSelectPrevious: () => void; onSelectErrors: () => void; }) => { if (!isOpen) return null; return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>Opções de Retorno</h2><p>Selecione qual tipo de seleção você deseja manter ao retornar para a página anterior.</p><div className="modal-actions return-options"><button type="button" onClick={onSelectPrevious} className="action-button">Seleção Anterior</button><button type="button" onClick={onSelectErrors} className="action-button">Somente Erros</button><button type="button" onClick={onClose} className="action-button">Cancelar</button></div></div></div>); };
+const SaveOptionsModal = ({ isOpen, onClose, onSelect }: { isOpen: boolean; onClose: () => void; onSelect: (option: SaveOption) => void; }) => { if (!isOpen) return null; return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>Salvar Resultados</h2><p>Como você deseja salvar os resultados da query?</p><div className="modal-actions return-options"><button type="button" onClick={() => onSelect('single')} className="action-button">Arquivo Único</button><button type="button" onClick={() => onSelect('separate')} className="action-button">Arquivos Separados</button><button type="button" onClick={() => onSelect('none')} className="action-button">Não Salvar</button><button type="button" onClick={onClose} className="action-button">Cancelar</button></div></div></div>); };
+const ConnectionModal = ({ mode, isOpen, onClose, onSave, initialValues }: { mode: 'new' | 'edit'; isOpen: boolean; onClose: () => void; onSave: (data: ConnectionFormData) => void; initialValues?: ConnectionFormData; }) => { const emptyForm: ConnectionFormData = { name: '', host: '', port: '', user: '', pass: '', savePass: false }; const [formData, setFormData] = useState(initialValues || emptyForm); useEffect(() => { if (isOpen) { setFormData(initialValues || emptyForm); } }, [isOpen, initialValues]); if (!isOpen) { return null; } const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (formData.name.trim()) { onSave(formData); } }; const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => { const { name, value, type, checked } = e.target; setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value, })); }; return ( <div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>{mode === 'new' ? 'Nova Conexão' : 'Editar Conexão'}</h2><form onSubmit={handleSubmit} className="modal-form"><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Nome da Conexão" autoFocus /><input type="text" name="host" value={formData.host} onChange={handleChange} placeholder="IP do Servidor" /><input type="text" name="port" value={formData.port} onChange={handleChange} placeholder="Porta do Servidor" /><input type="text" name="user" value={formData.user} onChange={handleChange} placeholder="Usuário" /><input type="password" name="pass" value={formData.pass} onChange={handleChange} placeholder="Senha" /><div><label className="checkbox-label"><input type="checkbox" name="savePass" checked={formData.savePass} onChange={handleChange} /> Salvar Senha</label></div><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Cancelar</button><button type="submit" className="action-button save-button">Salvar</button></div></form></div></div> ); };
+const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void; }) => { if (!isOpen) { return null; } return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={(e) => e.stopPropagation()}><h2>Confirmar Exclusão</h2><p>Tem certeza que deseja excluir esta conexão?</p><div className="modal-actions"><button type="button" onClick={onClose} className="action-button">Cancelar</button><button type="button" onClick={onConfirm} className="action-button delete-button">Excluir</button></div></div></div>); };
+const UtilityPanel = ({ onSelectQuery, active }: { onSelectQuery: (query: string) => void; active: boolean }) => { const [isExpanded, setIsExpanded] = useState(false); const [activeTab, setActiveTab] = useState<UtilityPanelTab>('history'); const [history, setHistory] = useState<HistoryEntry[]>([]); const [snippets, setSnippets] = useState<Snippet[]>([]); const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false); const [editingSnippet, setEditingSnippet] = useState<Snippet | undefined>(undefined); const [isPlaceholderModalOpen, setIsPlaceholderModalOpen] = useState(false); const [placeholdersToFill, setPlaceholdersToFill] = useState<string[]>([]); const [snippetToInterpolate, setSnippetToInterpolate] = useState<Snippet | null>(null); const { showNotification } = useNotification(); const fetchHistory = () => invoke<HistoryEntry[]>('get_query_history').then(setHistory).catch(console.error); const fetchSnippets = () => invoke<Snippet[]>('get_snippets').then(setSnippets).catch(console.error); useEffect(() => { if (active && isExpanded) { if (activeTab === 'history') fetchHistory(); else fetchSnippets(); } }, [active, isExpanded, activeTab]); const handleClearHistory = (e: React.MouseEvent) => { e.stopPropagation(); invoke('clear_query_history').then(() => { setHistory([]); showNotification("Histórico limpo com sucesso!"); }).catch(err => showNotification(`Erro ao limpar histórico: ${err}`)); }; const handleSaveSnippet = (data: SnippetFormData) => { const promise = editingSnippet ? invoke('update_snippet', { id: editingSnippet.id, payload: data }) : invoke('create_snippet', { payload: data }); promise.then(() => { showNotification(editingSnippet ? "Snippet atualizado!" : "Snippet salvo!"); fetchSnippets(); }).catch(err => showNotification(`Erro: ${err}`)); setIsSnippetModalOpen(false); setEditingSnippet(undefined); }; const handleDeleteSnippet = (id: number) => { invoke('delete_snippet', { id }) .then(() => { showNotification("Snippet excluído!"); fetchSnippets(); }) .catch(err => showNotification(`Erro ao excluir snippet: ${err}`)); }; const handleUseSnippet = (snippet: Snippet) => { const regex = /{{(.*?)}}/g; const matches = [...snippet.content.matchAll(regex)]; const uniquePlaceholders = [...new Set(matches.map(match => match[1]))]; if (uniquePlaceholders.length > 0) { setPlaceholdersToFill(uniquePlaceholders); setSnippetToInterpolate(snippet); setIsPlaceholderModalOpen(true); } else { onSelectQuery(snippet.content); } }; const handleSubmitPlaceholders = (values: Record<string, string>) => { if (!snippetToInterpolate) return; let interpolatedQuery = snippetToInterpolate.content; for (const key in values) { const value = values[key]; const placeholderRegex = new RegExp(`{{${key}}}`, 'g'); interpolatedQuery = interpolatedQuery.replace(placeholderRegex, value); } onSelectQuery(interpolatedQuery); setSnippetToInterpolate(null); }; return ( <> <SnippetModal isOpen={isSnippetModalOpen} onClose={() => setIsSnippetModalOpen(false)} onSave={handleSaveSnippet} initialData={editingSnippet} /> <PlaceholderModal isOpen={isPlaceholderModalOpen} onClose={() => setIsPlaceholderModalOpen(false)} placeholders={placeholdersToFill} onSubmit={handleSubmitPlaceholders} /> <div className={`utility-panel ${isExpanded ? 'expanded' : ''}`}> <div className="utility-header" onClick={() => setIsExpanded(!isExpanded)}> <div className="utility-tabs"> <button className={`utility-tab-button ${activeTab === 'history' ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setActiveTab('history'); }}>Histórico</button> <button className={`utility-tab-button ${activeTab === 'snippets' ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setActiveTab('snippets'); }}>Snippets</button> </div> <div className="utility-header-actions"> {activeTab === 'history' && ( <button onClick={handleClearHistory} className="action-button delete-button header-action-button" title="Limpar Histórico">🗑️</button> )} <span className="collapse-icon">{isExpanded ? '▲' : '▼'}</span> </div> </div> {isExpanded && ( <div className="utility-content"> {activeTab === 'history' && ( <div className="history-list"> {history.length > 0 ? ( <ul>{history.map(entry => ( <li key={entry.id} onClick={() => onSelectQuery(entry.query_text)}> <pre className="language-sql" dangerouslySetInnerHTML={{ __html: highlight(entry.query_text, Prism.languages.sql, 'sql')}}/> <span className="history-query-details">{entry.connection_name} - {new Date(entry.timestamp).toLocaleString()}</span> </li>))}</ul> ) : <p className="empty-message">Nenhuma query no histórico.</p>} </div> )} {activeTab === 'snippets' && ( <div className="snippets-list"> <button onClick={() => { setEditingSnippet(undefined); setIsSnippetModalOpen(true); }} className="action-button new-snippet-button">Novo Snippet</button> {snippets.length > 0 ? ( <ul>{snippets.map(snippet => ( <li key={snippet.id}> <div className="snippet-info"> <strong>{snippet.name}</strong> <p>{snippet.description}</p> </div> <div className="snippet-actions"> <button className="action-button" onClick={() => handleUseSnippet(snippet)}>Usar</button> <button className="action-button" onClick={() => { setEditingSnippet(snippet); setIsSnippetModalOpen(true); }}>Editar</button> <button className="action-button delete-button" onClick={() => handleDeleteSnippet(snippet.id)}>Excluir</button> </div> </li>))}</ul> ) : <p className="empty-message">Nenhum snippet salvo.</p>} </div> )} </div> )} </div> </> ); };
 
-
-// --- PAINEL DE UTILIDADES (HISTÓRICO E SNIPPETS) ---
-const UtilityPanel = ({ onSelectQuery, active }: { onSelectQuery: (query: string) => void; active: boolean }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<UtilityPanelTab>('history');
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [snippets, setSnippets] = useState<Snippet[]>([]);
-  const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
-  const [editingSnippet, setEditingSnippet] = useState<Snippet | undefined>(undefined);
-  const { showNotification } = useNotification();
-
-  const fetchHistory = () => invoke<HistoryEntry[]>('get_query_history').then(setHistory).catch(console.error);
-  const fetchSnippets = () => invoke<Snippet[]>('get_snippets').then(setSnippets).catch(console.error);
-
-  useEffect(() => {
-    if (active && isExpanded) {
-      if (activeTab === 'history') fetchHistory();
-      else fetchSnippets();
-    }
-  }, [active, isExpanded, activeTab]);
-
-  const handleClearHistory = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    invoke('clear_query_history').then(() => {
-        setHistory([]);
-        showNotification("Histórico limpo com sucesso!");
-    }).catch(err => showNotification(`Erro ao limpar histórico: ${err}`));
-  };
-
-  const handleSaveSnippet = (data: SnippetFormData) => {
-    const promise = editingSnippet
-        ? invoke('update_snippet', { id: editingSnippet.id, payload: data })
-        : invoke('create_snippet', { payload: data });
-    promise.then(() => {
-        showNotification(editingSnippet ? "Snippet atualizado!" : "Snippet salvo!");
-        fetchSnippets();
-    }).catch(err => showNotification(`Erro: ${err}`));
-    setIsSnippetModalOpen(false);
-    setEditingSnippet(undefined);
-  };
-  
-  const handleDeleteSnippet = (id: number) => {
-      invoke('delete_snippet', { id })
-        .then(() => {
-            showNotification("Snippet excluído!");
-            fetchSnippets();
-        })
-        .catch(err => showNotification(`Erro ao excluir snippet: ${err}`));
-  };
-
-  return (
-    <>
-      <SnippetModal isOpen={isSnippetModalOpen} onClose={() => setIsSnippetModalOpen(false)} onSave={handleSaveSnippet} initialData={editingSnippet} />
-      <div className={`utility-panel ${isExpanded ? 'expanded' : ''}`}>
-        <div className="utility-header" onClick={() => setIsExpanded(!isExpanded)}>
-          <div className="utility-tabs">
-            <button className={`utility-tab-button ${activeTab === 'history' ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setActiveTab('history'); }}>Histórico</button>
-            <button className={`utility-tab-button ${activeTab === 'snippets' ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setActiveTab('snippets'); }}>Snippets</button>
-          </div>
-          <div className="utility-header-actions">
-            {activeTab === 'history' && (
-                <button onClick={handleClearHistory} className="action-button delete-button header-action-button" title="Limpar Histórico">
-                    🗑️
-                </button>
-            )}
-            <span className="collapse-icon">{isExpanded ? '▲' : '▼'}</span>
-          </div>
-        </div>
-        {isExpanded && (
-          <div className="utility-content">
-            {activeTab === 'history' && (
-                <div className="history-list">
-                    {history.length > 0 ? (
-                        <ul>{history.map(entry => (
-                            <li key={entry.id} onClick={() => onSelectQuery(entry.query_text)}>
-                                <pre className="language-sql" dangerouslySetInnerHTML={{ __html: highlight(entry.query_text, Prism.languages.sql, 'sql')}}/>
-                                <span className="history-query-details">{entry.connection_name} - {new Date(entry.timestamp).toLocaleString()}</span>
-                            </li>))}
-                        </ul>
-                    ) : <p className="empty-message">Nenhuma query no histórico.</p>}
-                </div>
-            )}
-            {activeTab === 'snippets' && (
-                <div className="snippets-list">
-                    <button onClick={() => { setEditingSnippet(undefined); setIsSnippetModalOpen(true); }} className="action-button new-snippet-button">Novo Snippet</button>
-                    {snippets.length > 0 ? (
-                        <ul>{snippets.map(snippet => (
-                            <li key={snippet.id}>
-                                <div className="snippet-info">
-                                    <strong>{snippet.name}</strong>
-                                    <p>{snippet.description}</p>
-                                </div>
-                                <div className="snippet-actions">
-                                <button className="action-button" onClick={() => onSelectQuery(snippet.content)}>Usar</button>
-                                <button className="action-button" onClick={() => { setEditingSnippet(snippet); setIsSnippetModalOpen(true); }}>Editar</button>
-                                <button className="action-button delete-button" onClick={() => handleDeleteSnippet(snippet.id)}>Excluir</button>
-                                </div>
-                            </li>))}
-                        </ul>
-                    ) : <p className="empty-message">Nenhum snippet salvo.</p>}
-                </div>
-            )}
-          </div>
-        )}
-      </div>
-    </>
-  );
-};
-
-
-// --- COMPONENTES DE TELA ---
 const QueryScreen = ({
   connection,
   databases,
@@ -288,6 +75,13 @@ const QueryScreen = ({
   onExecute,
   query,
   setQuery,
+  autocompleteSourceDb,
+  indexedDatabases,
+  onSetAutocompleteSource,
+  isSyncingSchema,
+  isAutocompleteEnabled,
+  setIsAutocompleteEnabled,
+  schemaInfo,
 }: {
   connection: Connection;
   databases: { id: string; name: string; checked: boolean; status: number }[];
@@ -298,17 +92,39 @@ const QueryScreen = ({
   onExecute: (query: string, databases: string[], saveOption: SaveOption, stopOnError: boolean) => void;
   query: string;
   setQuery: (query: string) => void;
+  autocompleteSourceDb: string | null;
+  indexedDatabases: string[];
+  onSetAutocompleteSource: (dbName: string) => void;
+  isSyncingSchema: boolean;
+  isAutocompleteEnabled: boolean;
+  setIsAutocompleteEnabled: (enabled: boolean) => void;
+  schemaInfo: SchemaInfo | null;
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAllSelected, setIsAllSelected] = useState(true);
   const [isSaveOptionsModalOpen, setIsSaveOptionsModalOpen] = useState(false);
   const [stopOnErrorFlag, setStopOnErrorFlag] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const [suggestionContext, setSuggestionContext] = useState<SuggestionContext>(null);
+  const [partialWord, setPartialWord] = useState('');
+
+  const SQL_KEYWORDS = [ 'SELECT', 'FROM', 'WHERE', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'GROUP BY', 'ORDER BY', 'LIMIT', 'JOIN', 'ON', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CREATE', 'TABLE', 'ALTER', 'DROP', 'AND', 'OR', 'NOT', 'AS', 'DISTINCT', 'COUNT', 'AVG', 'SUM', 'MIN', 'MAX', 'HAVING' ];
 
   useEffect(() => { localStorage.setItem('userQuery', query); }, [query]);
   useEffect(() => { if (databases.length > 0) setIsAllSelected(databases.every(db => db.checked)); else setIsAllSelected(false); }, [databases]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => { setIsAllSelected(e.target.checked); setDatabases(dbs => dbs.map(db => ({...db, checked: e.target.checked}))); };
-  const handleDbCheck = (dbId: string) => { setDatabases(dbs => dbs.map(db => db.id === dbId ? {...db, checked: !db.checked } : db)); };
+  
+  const handleDbItemClick = (e: React.MouseEvent, db: { id: string; name: string; }) => {
+    e.preventDefault();
+    if (isAutocompleteEnabled && e.ctrlKey) {
+        onSetAutocompleteSource(db.name);
+    } else {
+        setDatabases(dbs => dbs.map(d => d.id === db.id ? {...d, checked: !d.checked } : d));
+    }
+  };
+
   const handleExecuteClick = (stopOnError: boolean) => { setStopOnErrorFlag(stopOnError); setIsSaveOptionsModalOpen(true); };
   const handleSaveOptionSelect = (saveOption: SaveOption) => {
     const selectedDbs = databases.filter(db => db.checked).map(db => db.name);
@@ -316,6 +132,100 @@ const QueryScreen = ({
     setIsSaveOptionsModalOpen(false);
   };
   const filteredDatabases = databases.filter(db => db.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // --- LÓGICA DO AUTOCOMPLETE ---
+
+  const updateSuggestions = (text: string) => {
+    if (!isAutocompleteEnabled || !schemaInfo) {
+        setSuggestions([]);
+        return;
+    }
+
+    const tableRegex = /\b(\w+)\.([\w]*)$/;
+    const tableMatch = text.match(tableRegex);
+    if (tableMatch) {
+        const schemaPart = tableMatch[1];
+        const partialTable = tableMatch[2];
+        setPartialWord(partialTable);
+        const tablesInSchema = schemaInfo.tables.filter(t => t.schema === schemaPart).map(t => t.name);
+        const filtered = tablesInSchema.filter(t => t.toLowerCase().startsWith(partialTable.toLowerCase()));
+        setSuggestions(filtered);
+        setSuggestionContext('table');
+        setActiveSuggestionIndex(0);
+        return;
+    }
+
+    const fromOrJoinRegex = /\b(from|join)\s+([\w.]*)$/i;
+    const schemaMatch = text.match(fromOrJoinRegex);
+    if (schemaMatch) {
+        const partial = schemaMatch[2];
+        setPartialWord(partial);
+        const schemaNames = [...new Set(schemaInfo.tables.map(t => t.schema))];
+        const filteredSchemas = schemaNames.filter(s => s.toLowerCase().startsWith(partial.toLowerCase()));
+        setSuggestions(filteredSchemas);
+        setSuggestionContext('schema');
+        setActiveSuggestionIndex(0);
+        return;
+    }
+    
+    const generalWordRegex = /(\s|^)([\w]*)$/;
+    const generalMatch = text.match(generalWordRegex);
+    if (generalMatch) {
+        const partial = generalMatch[2];
+        // CORREÇÃO: Não exibir sugestões se nada foi digitado
+        if (partial === '') {
+            setSuggestions([]);
+            return;
+        }
+        setPartialWord(partial);
+        const filtered = SQL_KEYWORDS.filter(k => k.toLowerCase().startsWith(partial.toLowerCase()));
+        setSuggestions(filtered);
+        setSuggestionContext('keyword');
+        setActiveSuggestionIndex(0);
+        return;
+    }
+
+    setSuggestions([]);
+    setSuggestionContext(null);
+  };
+
+  const handleSuggestionSelect = (suggestion: string) => {
+    const baseQuery = query.substring(0, query.length - partialWord.length);
+    let newQuery;
+    if (suggestionContext === 'schema') {
+        newQuery = baseQuery + suggestion + '.';
+    } else {
+        newQuery = baseQuery + suggestion + ' ';
+    }
+    
+    setQuery(newQuery);
+    updateSuggestions(newQuery);
+  };
+
+  const handleQueryChange = (newQuery: string) => {
+    setQuery(newQuery);
+    updateSuggestions(newQuery);
+  };
+  
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
+    if (suggestions.length === 0) return;
+    if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault();
+        setActiveSuggestionIndex(prev => (prev + 1) % suggestions.length);
+    }
+    else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+        e.preventDefault();
+        setActiveSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+    }
+    else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSuggestionSelect(suggestions[activeSuggestionIndex]);
+    }
+    else if (e.key === 'Escape') {
+        e.preventDefault();
+        setSuggestions([]);
+    }
+  };
 
   return (
     <div className="query-screen-container">
@@ -325,6 +235,21 @@ const QueryScreen = ({
         <div className="database-controls-bar">
           <input type="search" placeholder="Pesquisar banco..." className="search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           <label className="checkbox-label select-all-label"><input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} />Todos</label>
+          <label className="checkbox-label"><input type="checkbox" checked={isAutocompleteEnabled} onChange={(e) => setIsAutocompleteEnabled(e.target.checked)} />Autocomplete</label>
+          {isAutocompleteEnabled && (
+            <div className="legend-tooltip-container">
+                <span className="legend-icon">ℹ️</span>
+                <div className="legend-tooltip-content">
+                    <strong>Legenda do Autocomplete:</strong>
+                    <ul>
+                        <li><span className="legend-color-box autocomplete-source"></span>Fonte Atual</li>
+                        <li><span className="legend-color-box indexed"></span>Esquema em Cache</li>
+                        <li><span className="legend-color-box not-indexed"></span>Não Carregado</li>
+                    </ul>
+                    <p><strong>Ação:</strong> Segure <strong>CTRL</strong> e clique em um banco para defini-lo como fonte.</p>
+                </div>
+            </div>
+          )}
         </div>
       </div>
       {isLoading && <div className="loading-state">Carregando bancos de dados...</div>}
@@ -332,18 +257,27 @@ const QueryScreen = ({
       {!isLoading && !error && (
         <>
           <div className="database-list">
+             {isSyncingSchema && <SyncOverlay />}
             <div className="database-list-grid">
-              {filteredDatabases.map(db => (
-                <label key={db.id} className={`checkbox-label ${db.status < 0 ? 'disabled' : ''}`} >
-                  <input type="checkbox" checked={db.checked} onChange={() => handleDbCheck(db.id)} disabled={db.status < 0}/>
-                  {db.name}
-                </label>
-              ))}
+              {filteredDatabases.map(db => {
+                const isAutocompleteSource = db.name === autocompleteSourceDb;
+                const isIndexed = indexedDatabases.includes(db.name);
+                const itemClass = isAutocompleteEnabled ? (isAutocompleteSource ? 'autocomplete-source' : isIndexed ? 'indexed' : 'not-indexed') : 'indexed';
+                return (
+                    <label key={db.id} className={`checkbox-label db-list-item ${itemClass}`} onClick={(e) => handleDbItemClick(e, db)}>
+                      <input type="checkbox" checked={db.checked} readOnly />
+                      {db.name}
+                    </label>
+                );
+              })}
             </div>
           </div>
           <div className="query-editor">
             <h3>Query</h3>
-            <Editor value={query} onValueChange={setQuery} highlight={(code) => highlight(code, Prism.languages.sql, 'sql')} padding={12} textareaId="query-editor" textareaClassName="search-input" placeholder="Insira sua Query aqui" />
+            <div className="editor-wrapper">
+                <Editor value={query} onValueChange={handleQueryChange} onKeyDown={handleKeyDown} highlight={(code) => highlight(code, Prism.languages.sql, 'sql')} padding={12} textareaId="query-editor" textareaClassName="search-input" placeholder="Insira sua Query aqui" />
+                <AutocompleteBox suggestions={suggestions} onSelect={handleSuggestionSelect} activeIndex={activeSuggestionIndex} />
+            </div>
           </div>
           <div className="screen-actions">
             <button onClick={onBack} className="action-button">Voltar</button>
@@ -388,6 +322,11 @@ function App() {
   const [lastExecutionResults, setLastExecutionResults] = useState<DatabaseStatus[] | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [query, setQuery] = useState(() => localStorage.getItem('userQuery') || '');
+  const [autocompleteSourceDb, setAutocompleteSourceDb] = useState<string | null>(null);
+  const [indexedDatabases, setIndexedDatabases] = useState<string[]>([]);
+  const [isSyncingSchema, setIsSyncingSchema] = useState(false);
+  const [isAutocompleteEnabled, setIsAutocompleteEnabled] = useState(true);
+  const [schemaInfo, setSchemaInfo] = useState<SchemaInfo | null>(null);
 
   const selectedConnection = connections.find(c => c.id === selectedConnectionId);
 
@@ -409,19 +348,58 @@ function App() {
     return () => { unlistenPromise.then(fn => fn()); };
   }, [showNotification]);
 
+  const fetchIndexedDatabases = () => {
+      if (selectedConnection) {
+          invoke<string[]>('get_indexed_databases', { connectionName: selectedConnection.name })
+            .then(setIndexedDatabases)
+            .catch(console.error);
+      }
+  };
+
   useEffect(() => {
     if (screen === 'query' && selectedConnection) {
-      setIsLoadingDatabases(true);
-      setDbError(null);
-      invoke<DatabaseInfo[]>('get_databases', { connection: selectedConnection })
-        .then(dbInfos => {
-          const formattedDbs = dbInfos.map((db, index) => ({ id: `db-${index}`, name: db.name, checked: true, status: db.status, })).sort((a, b) => a.name.localeCompare(b.name));
-          setDatabases(formattedDbs);
-        })
-        .catch(err => { setDbError(err as string); })
-        .finally(() => { setIsLoadingDatabases(false); });
+      fetchIndexedDatabases(); 
+      const savedSource = localStorage.getItem(`autocompleteSource_${selectedConnection.id}`);
+      if (savedSource) { setAutocompleteSourceDb(savedSource); } 
+      else { setAutocompleteSourceDb(null); }
+      
+      if (databases.length === 0) {
+        setIsLoadingDatabases(true);
+        setDbError(null);
+        invoke<DatabaseInfo[]>('get_databases', { connection: selectedConnection })
+          .then(dbInfos => {
+            const formattedDbs = dbInfos.map((db, index) => ({ id: `db-${index}`, name: db.name, checked: true, status: db.status, })).sort((a, b) => a.name.localeCompare(b.name));
+            setDatabases(formattedDbs);
+          })
+          .catch(err => { setDbError(err as string); })
+          .finally(() => { setIsLoadingDatabases(false); });
+      }
     }
   }, [screen, selectedConnection]);
+  
+  useEffect(() => {
+    if (selectedConnection && autocompleteSourceDb) {
+        invoke<SchemaInfo>('get_cached_schema', { connectionName: selectedConnection.name, dbName: autocompleteSourceDb })
+            .then(setSchemaInfo)
+            .catch(console.error);
+    } else {
+        setSchemaInfo(null);
+    }
+  }, [selectedConnection, autocompleteSourceDb]);
+
+  const handleSetAutocompleteSource = (dbName: string) => {
+    if (!selectedConnection) return;
+    setIsSyncingSchema(true);
+    setAutocompleteSourceDb(dbName);
+    invoke('sync_schema', { connection: selectedConnection, dbName })
+        .then(() => {
+            showNotification(`Esquema de '${dbName}' sincronizado!`);
+            localStorage.setItem(`autocompleteSource_${selectedConnection.id}`, dbName);
+            fetchIndexedDatabases();
+        })
+        .catch(err => showNotification(`Erro ao sincronizar: ${err}`))
+        .finally(() => setIsSyncingSchema(false));
+  };
 
   const handleConnectionSelect = (connectionId: string) => { setSelectedConnectionId(currentId => (currentId === connectionId ? null : connectionId)); };
   const handleConnect = () => { if (selectedConnectionId) { setScreen('query'); } };
@@ -431,7 +409,7 @@ function App() {
   const handleDeleteConnection = () => { if (selectedConnectionId) { setIsConfirmDeleteOpen(true); } };
   const handleConfirmDelete = () => { if (selectedConnectionId) { setConnections(connections.filter(conn => conn.id !== selectedConnectionId)); showNotification("Conexão deletada."); setSelectedConnectionId(null); handleCloseConfirmDelete(); } };
   const handleCloseConfirmDelete = () => { setIsConfirmDeleteOpen(false); };
-  const handleBackToConnections = () => { setScreen('connections'); setDatabases([]); };
+  const handleBackToConnections = () => { setScreen('connections'); setDatabases([]); setAutocompleteSourceDb(null); setIndexedDatabases([]); };
 
   const handleExecute = (query: string, databases: string[], saveOption: SaveOption, stopOnError: boolean) => {
     if (!selectedConnection || databases.length === 0 || !query.trim()) {
@@ -446,7 +424,14 @@ function App() {
 
   const handleBackFromExecution = (results: DatabaseStatus[]) => { setLastExecutionResults(results); setIsReturnModalOpen(true); };
   const handleReturnSelectPrevious = () => { setIsReturnModalOpen(false); setScreen('query'); };
-  const handleReturnSelectErrors = () => { if (lastExecutionResults) { const errorDbNames = new Set(lastExecutionResults.filter(r => r.status === 'error').map(r => r.name)); setDatabases(prevDbs => prevDbs.map(db => ({ ...db, checked: errorDbNames.has(db.name) }))); } setIsReturnModalOpen(false); setScreen('query'); };
+  const handleReturnSelectErrors = () => {
+    if (lastExecutionResults) {
+      const errorDbNames = new Set(lastExecutionResults.filter(r => r.status === 'error').map(r => r.name));
+      setDatabases(prevDbs => prevDbs.map(db => ({ ...db, checked: errorDbNames.has(db.name) })));
+    }
+    setIsReturnModalOpen(false);
+    setScreen('query');
+  };
   const handleReturnCancel = () => { setIsReturnModalOpen(false); };
 
   const renderConnectionsScreen = () => (
@@ -460,7 +445,7 @@ function App() {
           <button type="button" disabled={!selectedConnectionId} className="action-button connect-button" onClick={handleConnect}>Conectar</button>
           <button type="button" className="action-button" onClick={() => handleOpenModal('new')}>Novo</button>
           <button type="button" disabled={!selectedConnectionId} className="action-button" onClick={() => handleOpenModal('edit')}>Editar</button>
-          <button type="button" disabled={!selectedConnectionId} className="action-button delete-button" onClick={handleDeleteConnection}>Deletar</button>
+          <button type="button" disabled={!selectedConnectionId} className={`action-button ${selectedConnectionId ? 'delete-button' : ''}`} onClick={handleDeleteConnection}>Deletar</button>
         </div>
       </div>
     </div>
@@ -478,12 +463,19 @@ function App() {
             connection={selectedConnection}
             databases={databases}
             setDatabases={setDatabases}
-            isLoading={isLoadingDatabases}
+            isLoading={isLoadingDatabases && databases.length === 0}
             error={dbError}
             onBack={handleBackToConnections}
             onExecute={handleExecute}
             query={query}
             setQuery={setQuery}
+            autocompleteSourceDb={autocompleteSourceDb}
+            indexedDatabases={indexedDatabases}
+            onSetAutocompleteSource={handleSetAutocompleteSource}
+            isSyncingSchema={isSyncingSchema}
+            isAutocompleteEnabled={isAutocompleteEnabled}
+            setIsAutocompleteEnabled={setIsAutocompleteEnabled}
+            schemaInfo={schemaInfo}
         />
       )}
       {screen === 'execution' && executionData && (
